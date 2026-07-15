@@ -20,13 +20,29 @@
 body{font-family:'Sarabun',sans-serif;background:var(--bg);color:var(--ink);font-size:15px}
 h1,h2,h3,.font-display{font-family:'Prompt',sans-serif}
 
-/* ===== header ===== */
-header{background:var(--charcoal);color:#f5efe8;padding:14px 22px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
-.brand{display:flex;align-items:center;gap:12px}
-.brand .flame{width:38px;height:38px;border-radius:10px;background:linear-gradient(160deg,#ff922b,#e8590c 55%,#a63603);display:flex;align-items:center;justify-content:center;font-size:20px;box-shadow:0 0 14px rgba(232,89,12,.45)}
-.brand h1{font-size:18px;font-weight:600;letter-spacing:.2px}
-.brand small{display:block;font-weight:400;color:#b9ad9f;font-size:12px}
-.head-right{margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+/* ===== layout : sidebar ===== */
+.layout{display:flex;min-height:100vh}
+aside{width:232px;flex-shrink:0;background:var(--charcoal);color:#f5efe8;display:flex;flex-direction:column;position:sticky;top:0;height:100vh}
+.brand{display:flex;align-items:center;gap:12px;padding:18px 16px 14px;border-bottom:1px solid #3a342d}
+.brand .flame{width:38px;height:38px;border-radius:10px;background:linear-gradient(160deg,#ff922b,#e8590c 55%,#a63603);display:flex;align-items:center;justify-content:center;font-size:20px;box-shadow:0 0 14px rgba(232,89,12,.45);flex-shrink:0}
+.brand h1{font-size:16px;font-weight:600;letter-spacing:.2px}
+.brand small{display:block;font-weight:400;color:#b9ad9f;font-size:11.5px}
+aside nav{display:flex;flex-direction:column;gap:2px;padding:12px 10px;flex:1;overflow-y:auto}
+aside nav button{font-family:'Prompt',sans-serif;background:none;border:none;color:#a89c8e;padding:11px 14px;font-size:14.5px;cursor:pointer;text-align:left;border-radius:9px;border-left:3px solid transparent;white-space:nowrap}
+aside nav button.active{color:#fff;background:#332e28;border-left-color:var(--ember);text-shadow:0 0 12px rgba(232,89,12,.6)}
+aside nav button:hover{color:#e8ddd0}
+.side-foot{padding:12px 10px;border-top:1px solid #3a342d;display:flex;flex-direction:column;gap:8px}
+.side-foot .btn{width:100%;justify-content:flex-start}
+.content{flex:1;min-width:0}
+@media(max-width:860px){
+  .layout{flex-direction:column}
+  aside{width:100%;height:auto;position:static}
+  aside nav{flex-direction:row;overflow-x:auto;padding:6px 10px}
+  aside nav button{border-left:none;border-bottom:3px solid transparent;border-radius:9px 9px 0 0;padding:9px 13px}
+  aside nav button.active{border-left:none;border-bottom-color:var(--ember)}
+  .side-foot{flex-direction:row}
+  .side-foot .btn{width:auto}
+}
 .btn{font-family:'Prompt',sans-serif;border:none;border-radius:9px;padding:8px 16px;font-size:14px;cursor:pointer;font-weight:500;transition:.15s;display:inline-flex;align-items:center;gap:6px}
 .btn-ember{background:var(--ember);color:#fff}.btn-ember:hover{background:var(--ember-deep)}
 .btn-ghost{background:transparent;color:#d8cfc4;border:1px solid #4a443c}.btn-ghost:hover{border-color:#7a7268;color:#fff}
@@ -34,12 +50,6 @@ header{background:var(--charcoal);color:#f5efe8;padding:14px 22px;display:flex;a
 .btn-green{background:var(--green);color:#fff}.btn-green:hover{background:#268a3b}
 .btn-red{background:var(--red-soft);color:var(--red)}.btn-red:hover{background:#f9ddd3}
 .btn-sm{padding:4px 10px;font-size:13px;border-radius:7px}
-
-/* ===== tabs ===== */
-nav{background:var(--charcoal);padding:0 22px;display:flex;gap:4px;overflow-x:auto}
-nav button{font-family:'Prompt',sans-serif;background:none;border:none;color:#a89c8e;padding:12px 18px;font-size:15px;cursor:pointer;border-bottom:3px solid transparent;white-space:nowrap}
-nav button.active{color:#fff;border-bottom-color:var(--ember);text-shadow:0 0 12px rgba(232,89,12,.6)}
-nav button:hover{color:#e8ddd0}
 
 main{max-width:1240px;margin:0 auto;padding:22px}
 .page{display:none}.page.active{display:block}
@@ -108,27 +118,29 @@ tfoot td{font-weight:700;background:#faf7f1;border-top:2px solid var(--line)}
 </head>
 <body>
 
-<header>
+<div class="layout">
+<aside>
   <div class="brand">
     <div class="flame">🔥</div>
     <div>
-      <h1>JJMK Payroll <small>จริงใจหมูกระทะ · ระบบเงินเดือนพนักงาน</small></h1>
+      <h1>JJMK Payroll <small>จริงใจหมูกระทะ · ระบบเงินเดือน</small></h1>
     </div>
   </div>
-  <div class="head-right">
+  <nav>
+    <button class="active" data-page="import" onclick="go('import')">📥 นำเข้าข้อมูล</button>
+    <button data-page="emp" onclick="go('emp')">👥 พนักงาน</button>
+    <button data-page="detail" onclick="go('detail')">🪪 ข้อมูลพนักงาน</button>
+    <button data-page="payroll" onclick="go('payroll')">💰 สรุปเงินเดือน</button>
+    <button data-page="settings" onclick="go('settings')">⚙️ ตั้งค่า</button>
+  </nav>
+  <div class="side-foot">
     <button class="btn btn-ghost" onclick="saveJSON()">💾 บันทึกข้อมูล</button>
     <button class="btn btn-ghost" onclick="document.getElementById('jsonFile').click()">📂 เปิดข้อมูลเดิม</button>
     <input type="file" id="jsonFile" accept=".json" style="display:none" onchange="loadJSON(this)">
   </div>
-</header>
+</aside>
 
-<nav>
-  <button class="active" data-page="import" onclick="go('import')">📥 นำเข้าข้อมูล</button>
-  <button data-page="emp" onclick="go('emp')">👥 พนักงาน</button>
-  <button data-page="payroll" onclick="go('payroll')">💰 สรุปเงินเดือน</button>
-  <button data-page="settings" onclick="go('settings')">⚙️ ตั้งค่า</button>
-</nav>
-
+<div class="content">
 <main>
 
 <!-- ============ IMPORT ============ -->
@@ -203,12 +215,22 @@ tfoot td{font-weight:700;background:#faf7f1;border-top:2px solid var(--line)}
   </div>
 </div>
 
-</main>
-
-<!-- ============ EMPLOYEE DETAIL MODAL ============ -->
-<div class="modal-bg" id="detailBg" onclick="if(event.target===this)closeModal('detailBg')">
-  <div class="modal" id="detailModal"></div>
+<!-- ============ EMPLOYEE DETAIL PAGE ============ -->
+<div class="page" id="page-detail">
+  <div class="toolbar">
+    <label style="margin:0;display:flex;align-items:center;gap:8px;font-size:14px">พนักงาน:
+      <select id="detailEmpSel" onchange="detailEmpId=+this.value;renderDetail()" style="width:auto;min-width:200px"></select>
+    </label>
+    <label style="margin:0;display:flex;align-items:center;gap:8px;font-size:14px">งวด:
+      <select id="detailPeriodSel" onchange="renderDetail()" style="width:auto;min-width:150px"></select>
+    </label>
+  </div>
+  <div id="detailContent"><div class="card"><div class="empty">ยังไม่มีพนักงาน — นำเข้าไฟล์ .xlsx หรือเพิ่มพนักงานก่อน</div></div></div>
 </div>
+
+</main>
+</div><!-- /content -->
+</div><!-- /layout -->
 
 <!-- ============ EMPLOYEE FORM MODAL ============ -->
 <div class="modal-bg" id="formBg" onclick="if(event.target===this)closeModal('formBg')">
@@ -277,7 +299,7 @@ const dayLabel = d => { const [y,m,dd]=d.split('-'); return +dd+' '+MONTHS_TH[+m
 const WD_TH = ['อา.','จ.','อ.','พ.','พฤ.','ศ.','ส.'];
 
 function toast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.style.display='block'; clearTimeout(t._h); t._h=setTimeout(()=>t.style.display='none',2200); }
-function go(p){ document.querySelectorAll('.page').forEach(x=>x.classList.remove('active')); document.getElementById('page-'+p).classList.add('active'); document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('active',b.dataset.page===p)); if(p==='emp')renderEmp(); if(p==='payroll')renderPayroll(); }
+function go(p){ document.querySelectorAll('.page').forEach(x=>x.classList.remove('active')); document.getElementById('page-'+p).classList.add('active'); document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('active',b.dataset.page===p)); if(p==='emp')renderEmp(); if(p==='payroll')renderPayroll(); if(p==='detail'){renderDetailSelector();renderDetail();} window.scrollTo(0,0); }
 function closeModal(id){ document.getElementById(id).classList.remove('show'); }
 
 /* ================= IMPORT ================= */
@@ -396,7 +418,7 @@ function allPeriods(){
 }
 function refreshPeriodSelectors(){
   const ps = allPeriods();
-  for(const id of ['periodSel','adjPeriod']){
+  for(const id of ['periodSel','adjPeriod','detailPeriodSel']){
     const sel = document.getElementById(id); const cur = sel.value;
     sel.innerHTML = ps.map(p=>`<option value="${p}">${periodLabel(p)}</option>`).join('') || '<option value="">– ยังไม่มีข้อมูล –</option>';
     if(ps.includes(cur)) sel.value = cur;
@@ -497,7 +519,7 @@ function saveEmpForm(){
   };
   if(id){ Object.assign(employees.find(x=>x.id==id), data); }
   else { employees.push({id:nextId++, ...data}); }
-  closeModal('formBg'); renderEmp(); renderPayroll(); toast('บันทึกแล้ว');
+  closeModal('formBg'); renderEmp(); renderPayroll(); renderDetailSelector(); renderDetail(); toast('บันทึกแล้ว');
 }
 function delEmp(id){
   const e = employees.find(x=>x.id===id);
@@ -505,24 +527,31 @@ function delEmp(id){
   employees = employees.filter(x=>x.id!==id);
   punches = punches.filter(p=>p.code!==e.code);
   adjustments = adjustments.filter(a=>a.empId!==id);
-  recomputeAll(); renderEmp(); toast('ลบแล้ว');
+  recomputeAll(); renderEmp(); renderDetailSelector(); renderDetail(); toast('ลบแล้ว');
 }
 
-/* ================= DETAIL ================= */
+/* ================= DETAIL PAGE ================= */
 let detailEmpId = null;
 function openDetail(id){
   detailEmpId = id;
-  renderDetail();
-  document.getElementById('detailBg').classList.add('show');
+  go('detail');
+}
+function renderDetailSelector(){
+  const sel = document.getElementById('detailEmpSel');
+  const list = [...employees].sort((a,b)=> b.active-a.active || (a.dept||'').localeCompare(b.dept||'','th') || a.nick.localeCompare(b.nick,'th'));
+  sel.innerHTML = list.map(e=>`<option value="${e.id}">${e.nick}${e.dept?' — '+e.dept:''}${e.active?'':' (พ้นสภาพ)'}</option>`).join('');
+  if(!employees.find(x=>x.id===detailEmpId)) detailEmpId = list.length? list[0].id : null;
+  if(detailEmpId) sel.value = detailEmpId;
 }
 function renderDetail(){
-  const e = employees.find(x=>x.id===detailEmpId); if(!e) return;
-  const period = document.getElementById('periodSel').value || allPeriods()[0] || '';
+  const e = employees.find(x=>x.id===detailEmpId);
+  if(!e){ document.getElementById('detailContent').innerHTML = '<div class="card"><div class="empty">ยังไม่มีพนักงาน — นำเข้าไฟล์ .xlsx หรือเพิ่มพนักงานก่อน</div></div>'; return; }
+  const period = document.getElementById('detailPeriodSel').value || allPeriods()[0] || '';
   const p = calcPay(e, period);
   const ss = empShiftsInPeriod(e, period);
   const maxH = Math.max(8, ...ss.map(s=>s.hours||0));
-  document.getElementById('detailModal').innerHTML = `
-    <button class="close" onclick="closeModal('detailBg')">✕</button>
+  document.getElementById('detailContent').innerHTML = `
+    <div class="card">
     <h2 class="font-display">${e.nick} <span class="muted" style="font-weight:400;font-size:14px">${e.full||''}</span></h2>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0 4px">
       <span class="dept-chip">${e.dept||'–'}</span>
@@ -572,6 +601,7 @@ function renderDetail(){
         </div>
         ${p.singleCount? `<div class="warn-note" style="margin-top:12px;margin-bottom:0">⚠️ มี ${p.singleCount} วันที่ตอกบัตรครั้งเดียว (ลืมตอกเข้า/ออก) — ระบบนับเป็นวันทำงานแต่คำนวณชั่วโมงไม่ได้</div>`:''}
       </div>
+    </div>
     </div>`;
 }
 
