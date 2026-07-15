@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JJMK Payroll — ระบบเงินเดือนพนักงาน</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Prompt:wght@400;500;600;700&family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#262220; --ink-soft:#6b625b; --bg:#f4f1ec; --panel:#ffffff;
+  --line:#e5ded5; --charcoal:#23201c; --charcoal-2:#332e28;
+  --ember:#e8590c; --ember-soft:#fff0e6; --ember-deep:#c14a08;
+  --green:#2f9e44; --green-soft:#e9f7ec; --red:#d9480f; --red-soft:#fdeeea;
+  --blue:#1971c2; --blue-soft:#e7f1fa; --amber:#b7791f; --amber-soft:#fdf6e3;
+  --radius:12px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Sarabun',sans-serif;background:var(--bg);color:var(--ink);font-size:15px}
+h1,h2,h3,.font-display{font-family:'Prompt',sans-serif}
+
+/* ===== header ===== */
+header{background:var(--charcoal);color:#f5efe8;padding:14px 22px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:12px}
+.brand .flame{width:38px;height:38px;border-radius:10px;background:linear-gradient(160deg,#ff922b,#e8590c 55%,#a63603);display:flex;align-items:center;justify-content:center;font-size:20px;box-shadow:0 0 14px rgba(232,89,12,.45)}
+.brand h1{font-size:18px;font-weight:600;letter-spacing:.2px}
+.brand small{display:block;font-weight:400;color:#b9ad9f;font-size:12px}
+.head-right{margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.btn{font-family:'Prompt',sans-serif;border:none;border-radius:9px;padding:8px 16px;font-size:14px;cursor:pointer;font-weight:500;transition:.15s;display:inline-flex;align-items:center;gap:6px}
+.btn-ember{background:var(--ember);color:#fff}.btn-ember:hover{background:var(--ember-deep)}
+.btn-ghost{background:transparent;color:#d8cfc4;border:1px solid #4a443c}.btn-ghost:hover{border-color:#7a7268;color:#fff}
+.btn-light{background:#fff;border:1px solid var(--line);color:var(--ink)}.btn-light:hover{border-color:#c9beb0}
+.btn-green{background:var(--green);color:#fff}.btn-green:hover{background:#268a3b}
+.btn-red{background:var(--red-soft);color:var(--red)}.btn-red:hover{background:#f9ddd3}
+.btn-sm{padding:4px 10px;font-size:13px;border-radius:7px}
+
+/* ===== tabs ===== */
+nav{background:var(--charcoal);padding:0 22px;display:flex;gap:4px;overflow-x:auto}
+nav button{font-family:'Prompt',sans-serif;background:none;border:none;color:#a89c8e;padding:12px 18px;font-size:15px;cursor:pointer;border-bottom:3px solid transparent;white-space:nowrap}
+nav button.active{color:#fff;border-bottom-color:var(--ember);text-shadow:0 0 12px rgba(232,89,12,.6)}
+nav button:hover{color:#e8ddd0}
+
+main{max-width:1240px;margin:0 auto;padding:22px}
+.page{display:none}.page.active{display:block}
+
+/* ===== cards & stats ===== */
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:20px;margin-bottom:18px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:18px}
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px;position:relative;overflow:hidden}
+.stat::after{content:'';position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--ember)}
+.stat .v{font-family:'Prompt',sans-serif;font-size:24px;font-weight:600}
+.stat .l{color:var(--ink-soft);font-size:13px}
+
+/* ===== tables ===== */
+.tbl-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--radius);background:#fff}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th{font-family:'Prompt',sans-serif;font-weight:500;text-align:left;background:#faf7f1;color:var(--ink-soft);padding:10px 12px;border-bottom:1px solid var(--line);white-space:nowrap;position:sticky;top:0}
+td{padding:9px 12px;border-bottom:1px solid #f0ebe2;white-space:nowrap}
+tr:last-child td{border-bottom:none}
+tbody tr:hover{background:#fdfaf5}
+.num{text-align:right;font-variant-numeric:tabular-nums}
+th.num{text-align:right}
+.clickable{cursor:pointer}
+
+.chip{display:inline-block;padding:2px 10px;border-radius:99px;font-size:12.5px;font-weight:600}
+.chip-green{background:var(--green-soft);color:var(--green)}
+.chip-red{background:var(--red-soft);color:var(--red)}
+.chip-amber{background:var(--amber-soft);color:var(--amber)}
+.chip-blue{background:var(--blue-soft);color:var(--blue)}
+.chip-gray{background:#efece6;color:var(--ink-soft)}
+.dept-chip{background:#f1ede6;color:#5a5148;padding:2px 9px;border-radius:6px;font-size:12.5px}
+
+/* ===== drop zone ===== */
+.drop{border:2px dashed #cbbfae;border-radius:var(--radius);padding:46px 20px;text-align:center;cursor:pointer;transition:.2s;background:#fffdf9}
+.drop:hover,.drop.over{border-color:var(--ember);background:var(--ember-soft)}
+.drop .big{font-family:'Prompt',sans-serif;font-size:17px;font-weight:500;margin:10px 0 4px}
+.drop small{color:var(--ink-soft)}
+.drop .ic{font-size:34px}
+
+/* ===== forms ===== */
+label{display:block;font-size:13px;color:var(--ink-soft);margin-bottom:4px;font-weight:600}
+input,select{font-family:'Sarabun',sans-serif;font-size:14.5px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;width:100%;background:#fff;color:var(--ink)}
+input:focus,select:focus{outline:2px solid rgba(232,89,12,.25);border-color:var(--ember)}
+.grid{display:grid;gap:12px}
+.g2{grid-template-columns:1fr 1fr}.g3{grid-template-columns:repeat(3,1fr)}.g4{grid-template-columns:repeat(4,1fr)}
+@media(max-width:720px){.g3,.g4{grid-template-columns:1fr 1fr}}
+
+/* ===== modal ===== */
+.modal-bg{display:none;position:fixed;inset:0;background:rgba(30,25,20,.55);z-index:50;padding:20px;overflow-y:auto}
+.modal-bg.show{display:flex;align-items:flex-start;justify-content:center}
+.modal{background:#fff;border-radius:16px;max-width:920px;width:100%;margin:24px auto;padding:24px;position:relative}
+.modal.narrow{max-width:520px}
+.modal .close{position:absolute;top:14px;right:14px;background:#f1ede6;border:none;width:32px;height:32px;border-radius:8px;font-size:16px;cursor:pointer;color:var(--ink-soft)}
+.modal h2{font-size:19px;margin-bottom:4px}
+.muted{color:var(--ink-soft);font-size:13.5px}
+.section-title{font-family:'Prompt',sans-serif;font-size:15px;font-weight:600;margin:20px 0 8px;display:flex;align-items:center;gap:8px}
+.section-title::before{content:'';width:10px;height:10px;border-radius:3px;background:var(--ember)}
+.toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
+.toolbar input[type=search]{max-width:260px}
+.empty{text-align:center;color:var(--ink-soft);padding:40px 10px}
+.toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--charcoal);color:#fff;padding:11px 22px;border-radius:99px;font-family:'Prompt',sans-serif;font-size:14px;z-index:99;display:none;box-shadow:0 6px 20px rgba(0,0,0,.25)}
+.hours-bar{height:5px;background:#eee6da;border-radius:99px;overflow:hidden;min-width:70px}
+.hours-bar i{display:block;height:100%;background:var(--ember)}
+tfoot td{font-weight:700;background:#faf7f1;border-top:2px solid var(--line)}
+.warn-note{background:var(--amber-soft);border:1px solid #eedcb3;color:#7a5a12;padding:10px 14px;border-radius:10px;font-size:13.5px;margin-bottom:14px}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <div class="flame">🔥</div>
+    <div>
+      <h1>JJMK Payroll <small>จริงใจหมูกระทะ · ระบบเงินเดือนพนักงาน</small></h1>
+    </div>
+  </div>
+  <div class="head-right">
+    <button class="btn btn-ghost" onclick="saveJSON()">💾 บันทึกข้อมูล</button>
+    <button class="btn btn-ghost" onclick="document.getElementById('jsonFile').click()">📂 เปิดข้อมูลเดิม</button>
+    <input type="file" id="jsonFile" accept=".json" style="display:none" onchange="loadJSON(this)">
+  </div>
+</header>
+
+<nav>
+  <button class="active" data-page="import" onclick="go('import')">📥 นำเข้าข้อมูล</button>
+  <button data-page="emp" onclick="go('emp')">👥 พนักงาน</button>
+  <button data-page="payroll" onclick="go('payroll')">💰 สรุปเงินเดือน</button>
+  <button data-page="settings" onclick="go('settings')">⚙️ ตั้งค่า</button>
+</nav>
+
+<main>
+
+<!-- ============ IMPORT ============ -->
+<div class="page active" id="page-import">
+  <div class="card">
+    <h2 class="font-display" style="font-size:18px;margin-bottom:6px">นำเข้าไฟล์การเข้างาน (.xlsx)</h2>
+    <p class="muted" style="margin-bottom:16px">รองรับไฟล์ Transaction จากเครื่องสแกนนิ้ว — ระบบจะจับคู่เวลาเข้า-ออกให้อัตโนมัติ (กะข้ามเที่ยงคืนนับเป็นวันเดียวกัน) และเพิ่มพนักงานใหม่ที่เจอในไฟล์ให้เอง</p>
+    <div class="drop" id="drop" onclick="document.getElementById('xlsxFile').click()">
+      <div class="ic">📄</div>
+      <div class="big">ลากไฟล์มาวาง หรือคลิกเพื่อเลือกไฟล์</div>
+      <small>ไฟล์ .xlsx ที่ export จากเครื่องสแกนนิ้ว (First Name / Last Name / ID / Department / Date / Time)</small>
+    </div>
+  </div>
+  <div id="importResult"></div>
+  <input type="file" id="xlsxFile" accept=".xlsx,.xls" style="display:none" onchange="handleFile(this.files[0])">
+</div>
+
+<!-- ============ EMPLOYEES ============ -->
+<div class="page" id="page-emp">
+  <div class="stats" id="empStats"></div>
+  <div class="toolbar">
+    <input type="search" id="empSearch" placeholder="ค้นหาชื่อ / แผนก…" oninput="renderEmp()">
+    <select id="empDeptFilter" onchange="renderEmp()" style="max-width:200px"><option value="">ทุกแผนก</option></select>
+    <span style="flex:1"></span>
+    <button class="btn btn-ember" onclick="openEmpForm()">＋ เพิ่มพนักงาน</button>
+  </div>
+  <div class="tbl-wrap"><table id="empTable"></table></div>
+</div>
+
+<!-- ============ PAYROLL ============ -->
+<div class="page" id="page-payroll">
+  <div class="toolbar">
+    <label style="margin:0;display:flex;align-items:center;gap:8px;font-size:14px">งวด:
+      <select id="periodSel" onchange="renderPayroll()" style="width:auto;min-width:170px"></select>
+    </label>
+    <span style="flex:1"></span>
+    <button class="btn btn-light" onclick="exportPayrollXlsx()">📤 Export Excel</button>
+  </div>
+  <div class="stats" id="payStats"></div>
+  <div class="tbl-wrap"><table id="payTable"></table></div>
+</div>
+
+<!-- ============ SETTINGS ============ -->
+<div class="page" id="page-settings">
+  <div class="card" style="max-width:640px">
+    <h2 class="font-display" style="font-size:18px;margin-bottom:14px">ตั้งค่าระบบ</h2>
+    <div class="grid g2">
+      <div>
+        <label>จุดตัดวัน (กะข้ามคืน)</label>
+        <select id="setCutoff" onchange="settings.cutoff=+this.value;recomputeAll();toast('บันทึกแล้ว')">
+          <option value="4">04:00</option><option value="5">05:00</option>
+          <option value="6" selected>06:00</option><option value="7">07:00</option><option value="8">08:00</option>
+        </select>
+        <p class="muted" style="margin-top:6px">ตอกบัตรก่อนเวลานี้ = นับเป็นกะของเมื่อวาน (ร้านปิดดึก)</p>
+      </div>
+      <div>
+        <label>ค่าแรงเริ่มต้นพนักงานใหม่ (บาท/วัน)</label>
+        <input type="number" id="setDefaultWage" value="400" onchange="settings.defaultWage=+this.value;toast('บันทึกแล้ว')">
+        <p class="muted" style="margin-top:6px">ใช้ตอนนำเข้าไฟล์แล้วเจอพนักงานใหม่</p>
+      </div>
+      <div>
+        <label>อนุโลมสาย (นาที)</label>
+        <input type="number" id="setGrace" value="15" onchange="settings.grace=+this.value;recomputeAll();toast('บันทึกแล้ว')">
+      </div>
+      <div>
+        <label>หักเงินเมื่อสาย (บาท/ครั้ง)</label>
+        <input type="number" id="setLateFine" value="0" onchange="settings.lateFine=+this.value;renderPayroll();toast('บันทึกแล้ว')">
+        <p class="muted" style="margin-top:6px">ใส่ 0 = ไม่หักอัตโนมัติ (หักเองรายคนได้)</p>
+      </div>
+    </div>
+    <div class="warn-note" style="margin-top:18px;margin-bottom:0">⚠️ ข้อมูลอยู่ในหน้าเว็บเท่านั้น — ก่อนปิดหน้าให้กด <b>💾 บันทึกข้อมูล</b> ด้านบนเพื่อเก็บเป็นไฟล์ แล้วครั้งหน้าค่อยกด 📂 เปิดข้อมูลเดิม</div>
+  </div>
+</div>
+
+</main>
+
+<!-- ============ EMPLOYEE DETAIL MODAL ============ -->
+<div class="modal-bg" id="detailBg" onclick="if(event.target===this)closeModal('detailBg')">
+  <div class="modal" id="detailModal"></div>
+</div>
+
+<!-- ============ EMPLOYEE FORM MODAL ============ -->
+<div class="modal-bg" id="formBg" onclick="if(event.target===this)closeModal('formBg')">
+  <div class="modal narrow">
+    <button class="close" onclick="closeModal('formBg')">✕</button>
+    <h2 class="font-display" id="formTitle">เพิ่มพนักงาน</h2>
+    <p class="muted" style="margin-bottom:16px">ข้อมูลพื้นฐานและอัตราค่าแรง</p>
+    <input type="hidden" id="fId">
+    <div class="grid g2">
+      <div><label>ชื่อเล่น *</label><input id="fNick"></div>
+      <div><label>ชื่อ-นามสกุล</label><input id="fFull"></div>
+      <div><label>รหัสพนักงาน (จากเครื่องสแกน)</label><input id="fCode"></div>
+      <div><label>แผนก</label><input id="fDept" list="deptList"><datalist id="deptList"></datalist></div>
+      <div><label>ประเภทค่าแรง</label>
+        <select id="fType"><option value="daily">รายวัน</option><option value="monthly">รายเดือน</option></select>
+      </div>
+      <div><label>อัตราค่าแรง (บาท)</label><input type="number" id="fRate" value="400"></div>
+      <div><label>เวลาเข้างานปกติ</label><input type="time" id="fStart" value="17:00"></div>
+      <div><label>สถานะ</label>
+        <select id="fActive"><option value="1">ทำงานอยู่</option><option value="0">พ้นสภาพ</option></select>
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:20px;justify-content:flex-end">
+      <button class="btn btn-light" onclick="closeModal('formBg')">ยกเลิก</button>
+      <button class="btn btn-ember" onclick="saveEmpForm()">บันทึก</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ ADJUSTMENT MODAL ============ -->
+<div class="modal-bg" id="adjBg" onclick="if(event.target===this)closeModal('adjBg')">
+  <div class="modal narrow">
+    <button class="close" onclick="closeModal('adjBg')">✕</button>
+    <h2 class="font-display" id="adjTitle">เพิ่มรายการ</h2>
+    <input type="hidden" id="adjEmpId"><input type="hidden" id="adjKind">
+    <div class="grid" style="margin-top:14px">
+      <div><label>รายการ</label><input id="adjReason" placeholder="เช่น หักเบิกล่วงหน้า / โบนัส / ค่า OT"></div>
+      <div class="grid g2">
+        <div><label>จำนวนเงิน (บาท)</label><input type="number" id="adjAmount" min="0"></div>
+        <div><label>งวดเดือน</label><select id="adjPeriod"></select></div>
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:20px;justify-content:flex-end">
+      <button class="btn btn-light" onclick="closeModal('adjBg')">ยกเลิก</button>
+      <button class="btn btn-ember" onclick="saveAdj()">บันทึก</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ================= STATE ================= */
+let settings = { cutoff: 6, grace: 15, lateFine: 0, defaultWage: 400 };
+let employees = [];   // {id, code, nick, full, dept, type, rate, start, active}
+let punches = [];     // {code, date:'YYYY-MM-DD', time:'HH:MM'}  raw dedup'd
+let shifts = {};      // computed: code -> [{day, in, out, hours, late, single}]
+let adjustments = []; // {id, empId, kind:'deduct'|'add', reason, amount, period:'YYYY-MM'}
+let nextId = 1;
+
+const THB = n => (n==null||isNaN(n)) ? '–' : n.toLocaleString('th-TH',{maximumFractionDigits:0});
+const THB2 = n => (n==null||isNaN(n)) ? '–' : n.toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2});
+const MONTHS_TH = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+const periodLabel = p => { const [y,m]=p.split('-'); return MONTHS_TH[+m-1]+' '+(+y+543); };
+const dayLabel = d => { const [y,m,dd]=d.split('-'); return +dd+' '+MONTHS_TH[+m-1]; };
+const WD_TH = ['อา.','จ.','อ.','พ.','พฤ.','ศ.','ส.'];
+
+function toast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.style.display='block'; clearTimeout(t._h); t._h=setTimeout(()=>t.style.display='none',2200); }
+function go(p){ document.querySelectorAll('.page').forEach(x=>x.classList.remove('active')); document.getElementById('page-'+p).classList.add('active'); document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('active',b.dataset.page===p)); if(p==='emp')renderEmp(); if(p==='payroll')renderPayroll(); }
+function closeModal(id){ document.getElementById(id).classList.remove('show'); }
+
+/* ================= IMPORT ================= */
+const drop = document.getElementById('drop');
+['dragover','dragenter'].forEach(e=>drop.addEventListener(e,ev=>{ev.preventDefault();drop.classList.add('over');}));
+['dragleave','drop'].forEach(e=>drop.addEventListener(e,ev=>{ev.preventDefault();drop.classList.remove('over');}));
+drop.addEventListener('drop',ev=>{ if(ev.dataTransfer.files[0]) handleFile(ev.dataTransfer.files[0]); });
+
+function handleFile(file){
+  const reader = new FileReader();
+  reader.onload = e => {
+    try{
+      const wb = XLSX.read(new Uint8Array(e.target.result), {type:'array'});
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, {header:1, raw:false});
+      // find header row (contains 'First Name' & 'Date')
+      let hi = rows.findIndex(r => r && r.includes('First Name') && r.includes('Date'));
+      if(hi < 0) return toast('❌ ไม่พบหัวตาราง (First Name / Date) ในไฟล์');
+      const H = rows[hi];
+      const col = name => H.indexOf(name);
+      const cFn=col('First Name'), cLn=col('Last Name'), cId=col('ID'), cDp=col('Department'), cDt=col('Date'), cTm=col('Time');
+      let newEmp=0, added=0, dup=0, bad=0;
+      const seen = new Set(punches.map(p=>p.code+'|'+p.date+'|'+p.time));
+      for(let i=hi+1;i<rows.length;i++){
+        const r=rows[i]; if(!r||!r[cId]) continue;
+        const code=String(r[cId]).trim();
+        const d=parseDate(String(r[cDt]||'').trim());
+        const t=parseTime(String(r[cTm]||'').trim());
+        if(!d||!t){bad++;continue;}
+        // employee
+        let emp = employees.find(x=>x.code===code);
+        if(!emp){
+          emp = { id:nextId++, code, nick:String(r[cFn]||'').trim()||code,
+            full:(String(r[cLn]||'').trim()==='--'?'':String(r[cLn]||'').trim()),
+            dept:String(r[cDp]||'').trim(), type:'daily', rate:settings.defaultWage, start:'17:00', active:1 };
+          employees.push(emp); newEmp++;
+        }
+        const key=code+'|'+d+'|'+t;
+        if(seen.has(key)){dup++;continue;}
+        seen.add(key);
+        punches.push({code, date:d, time:t}); added++;
+      }
+      recomputeAll();
+      const periods=[...new Set(Object.values(shifts).flat().map(s=>s.day.slice(0,7)))].sort();
+      document.getElementById('importResult').innerHTML = `
+        <div class="card">
+          <h3 class="font-display" style="font-size:16px;margin-bottom:10px">✅ นำเข้าสำเร็จ</h3>
+          <div class="stats" style="margin-bottom:0">
+            <div class="stat"><div class="v">${added.toLocaleString()}</div><div class="l">รายการตอกบัตรใหม่</div></div>
+            <div class="stat"><div class="v">${dup.toLocaleString()}</div><div class="l">ซ้ำ (ข้ามให้แล้ว)</div></div>
+            <div class="stat"><div class="v">${newEmp}</div><div class="l">พนักงานใหม่ที่เพิ่มให้</div></div>
+            <div class="stat"><div class="v">${periods.length?periods.map(periodLabel).join(', '):'–'}</div><div class="l">งวดที่มีข้อมูล</div></div>
+          </div>
+          <div style="margin-top:14px;display:flex;gap:10px">
+            <button class="btn btn-ember" onclick="go('emp')">ไปหน้าพนักงาน →</button>
+            <button class="btn btn-light" onclick="go('payroll')">ดูสรุปเงินเดือน</button>
+          </div>
+        </div>`;
+      toast('นำเข้าเรียบร้อย');
+    }catch(err){ console.error(err); toast('❌ อ่านไฟล์ไม่ได้: '+err.message); }
+  };
+  reader.readAsArrayBuffer(file);
+}
+function parseDate(s){ // DD-MM-YYYY or D/M/YYYY -> YYYY-MM-DD
+  let m = s.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})$/);
+  if(m) return m[3]+'-'+m[2].padStart(2,'0')+'-'+m[1].padStart(2,'0');
+  m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if(m) return m[1]+'-'+m[2].padStart(2,'0')+'-'+m[3].padStart(2,'0');
+  return null;
+}
+function parseTime(s){ const m=s.match(/^(\d{1,2}):(\d{2})/); return m? m[1].padStart(2,'0')+':'+m[2] : null; }
+
+/* ================= SHIFT ENGINE ================= */
+function localYMD(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function recomputeAll(){
+  shifts = {};
+  const byEmpDay = {};
+  for(const p of punches){
+    const dt = new Date(p.date+'T'+p.time+':00');
+    let day = p.date;
+    if(dt.getHours() < settings.cutoff){ // belongs to previous day's shift
+      const prev = new Date(dt); prev.setDate(prev.getDate()-1);
+      day = localYMD(prev);
+    }
+    const k = p.code+'|'+day;
+    (byEmpDay[k] = byEmpDay[k]||[]).push(dt);
+  }
+  for(const k in byEmpDay){
+    const [code, day] = k.split('|');
+    const ts = byEmpDay[k].sort((a,b)=>a-b);
+    const tin = ts[0], tout = ts[ts.length-1];
+    const single = ts.length===1 || tin.getTime()===tout.getTime();
+    const hours = single? null : (tout-tin)/3600000;
+    (shifts[code]=shifts[code]||[]).push({day, in:tin, out:tout, hours, single});
+  }
+  for(const c in shifts) shifts[c].sort((a,b)=>a.day<b.day?-1:1);
+  refreshPeriodSelectors();
+}
+function fmtT(d){ return d.toTimeString().slice(0,5); }
+function isLate(emp, s){
+  if(s.single) return false;
+  const [h,m] = (emp.start||'17:00').split(':').map(Number);
+  const sched = h*60+m+ (settings.grace||0);
+  const inMin = s.in.getHours()*60+s.in.getMinutes();
+  // only judge lateness if punch-in is within ±5h of scheduled start (avoid flagging different shifts)
+  if(Math.abs(inMin - (h*60+m)) > 300) return false;
+  return inMin > sched;
+}
+function empShiftsInPeriod(emp, period){
+  return (shifts[emp.code]||[]).filter(s=>s.day.slice(0,7)===period);
+}
+function allPeriods(){
+  const set = new Set();
+  for(const c in shifts) for(const s of shifts[c]) set.add(s.day.slice(0,7));
+  return [...set].sort().reverse();
+}
+function refreshPeriodSelectors(){
+  const ps = allPeriods();
+  for(const id of ['periodSel','adjPeriod']){
+    const sel = document.getElementById(id); const cur = sel.value;
+    sel.innerHTML = ps.map(p=>`<option value="${p}">${periodLabel(p)}</option>`).join('') || '<option value="">– ยังไม่มีข้อมูล –</option>';
+    if(ps.includes(cur)) sel.value = cur;
+  }
+}
+
+/* ================= PAY CALC ================= */
+function calcPay(emp, period){
+  const ss = empShiftsInPeriod(emp, period);
+  const days = ss.length;
+  const lateCount = ss.filter(s=>isLate(emp,s)).length;
+  const singleCount = ss.filter(s=>s.single).length;
+  const hours = ss.reduce((a,s)=>a+(s.hours||0),0);
+  let base;
+  if(emp.type==='monthly') base = days>0 ? +emp.rate : 0;
+  else base = days * +emp.rate;
+  const adds = adjustments.filter(a=>a.empId===emp.id && a.period===period && a.kind==='add');
+  const dedu = adjustments.filter(a=>a.empId===emp.id && a.period===period && a.kind==='deduct');
+  const addSum = adds.reduce((a,x)=>a+ +x.amount,0);
+  let deduSum = dedu.reduce((a,x)=>a+ +x.amount,0);
+  const lateAuto = (settings.lateFine||0) * lateCount;
+  deduSum += lateAuto;
+  return { days, lateCount, singleCount, hours, base, adds, dedu, addSum, deduSum, lateAuto, net: base + addSum - deduSum };
+}
+
+/* ================= EMPLOYEES PAGE ================= */
+function renderEmp(){
+  const q = (document.getElementById('empSearch').value||'').toLowerCase();
+  const df = document.getElementById('empDeptFilter').value;
+  const depts = [...new Set(employees.map(e=>e.dept).filter(Boolean))].sort();
+  const dfSel = document.getElementById('empDeptFilter');
+  const cur = dfSel.value;
+  dfSel.innerHTML = '<option value="">ทุกแผนก</option>'+depts.map(d=>`<option ${d===cur?'selected':''}>${d}</option>`).join('');
+  document.getElementById('deptList').innerHTML = depts.map(d=>`<option>${d}</option>`).join('');
+
+  const list = employees.filter(e =>
+    (!df || e.dept===df) &&
+    (!q || (e.nick+' '+e.full+' '+e.dept+' '+e.code).toLowerCase().includes(q))
+  ).sort((a,b)=> b.active-a.active || (a.dept||'').localeCompare(b.dept||'','th') || a.nick.localeCompare(b.nick,'th'));
+
+  const active = employees.filter(e=>e.active).length;
+  document.getElementById('empStats').innerHTML = `
+    <div class="stat"><div class="v">${active}</div><div class="l">พนักงานทำงานอยู่</div></div>
+    <div class="stat"><div class="v">${employees.length-active}</div><div class="l">พ้นสภาพ</div></div>
+    <div class="stat"><div class="v">${depts.length}</div><div class="l">แผนก</div></div>
+    <div class="stat"><div class="v">${punches.length.toLocaleString()}</div><div class="l">รายการตอกบัตรทั้งหมด</div></div>`;
+
+  const tbl = document.getElementById('empTable');
+  if(!list.length){ tbl.innerHTML = '<tr><td><div class="empty">ยังไม่มีพนักงาน — นำเข้าไฟล์ .xlsx หรือกด ＋ เพิ่มพนักงาน</div></td></tr>'; return; }
+  const period = allPeriods()[0];
+  tbl.innerHTML = `<thead><tr>
+      <th>ชื่อเล่น</th><th>ชื่อ-นามสกุล</th><th>แผนก</th><th>ประเภท</th>
+      <th class="num">ค่าแรง</th><th class="num">วันทำงาน${period?' ('+periodLabel(period)+')':''}</th><th>สถานะ</th><th></th>
+    </tr></thead><tbody>` +
+    list.map(e=>{
+      const days = period? empShiftsInPeriod(e,period).length : 0;
+      return `<tr>
+        <td class="clickable" onclick="openDetail(${e.id})"><b style="color:var(--ember-deep)">${e.nick}</b></td>
+        <td class="clickable" onclick="openDetail(${e.id})">${e.full||'<span class="muted">–</span>'}</td>
+        <td><span class="dept-chip">${e.dept||'–'}</span></td>
+        <td>${e.type==='monthly'?'<span class="chip chip-blue">รายเดือน</span>':'<span class="chip chip-gray">รายวัน</span>'}</td>
+        <td class="num">${THB(e.rate)}${e.type==='monthly'?'/ด.':'/วัน'}</td>
+        <td class="num">${days||'–'}</td>
+        <td>${e.active?'<span class="chip chip-green">ทำงานอยู่</span>':'<span class="chip chip-red">พ้นสภาพ</span>'}</td>
+        <td style="text-align:right">
+          <button class="btn btn-light btn-sm" onclick="openDetail(${e.id})">รายละเอียด</button>
+          <button class="btn btn-light btn-sm" onclick="openEmpForm(${e.id})">แก้ไข</button>
+          <button class="btn btn-red btn-sm" onclick="delEmp(${e.id})">ลบ</button>
+        </td></tr>`;
+    }).join('') + '</tbody>';
+}
+function openEmpForm(id){
+  const e = employees.find(x=>x.id===id);
+  document.getElementById('formTitle').textContent = e? 'แก้ไขพนักงาน — '+e.nick : 'เพิ่มพนักงาน';
+  document.getElementById('fId').value = e? e.id : '';
+  document.getElementById('fNick').value = e? e.nick : '';
+  document.getElementById('fFull').value = e? e.full : '';
+  document.getElementById('fCode').value = e? e.code : '';
+  document.getElementById('fDept').value = e? e.dept : '';
+  document.getElementById('fType').value = e? e.type : 'daily';
+  document.getElementById('fRate').value = e? e.rate : settings.defaultWage;
+  document.getElementById('fStart').value = e? e.start : '17:00';
+  document.getElementById('fActive').value = e? String(e.active) : '1';
+  document.getElementById('formBg').classList.add('show');
+}
+function saveEmpForm(){
+  const id = document.getElementById('fId').value;
+  const nick = document.getElementById('fNick').value.trim();
+  if(!nick) return toast('❌ กรุณาใส่ชื่อเล่น');
+  const data = {
+    nick, full: document.getElementById('fFull').value.trim(),
+    code: document.getElementById('fCode').value.trim() || ('M'+Date.now()),
+    dept: document.getElementById('fDept').value.trim(),
+    type: document.getElementById('fType').value,
+    rate: +document.getElementById('fRate').value||0,
+    start: document.getElementById('fStart').value||'17:00',
+    active: +document.getElementById('fActive').value
+  };
+  if(id){ Object.assign(employees.find(x=>x.id==id), data); }
+  else { employees.push({id:nextId++, ...data}); }
+  closeModal('formBg'); renderEmp(); renderPayroll(); toast('บันทึกแล้ว');
+}
+function delEmp(id){
+  const e = employees.find(x=>x.id===id);
+  if(!confirm('ลบพนักงาน "'+e.nick+'" ?\n(ประวัติตอกบัตรของรหัสนี้จะถูกลบด้วย)')) return;
+  employees = employees.filter(x=>x.id!==id);
+  punches = punches.filter(p=>p.code!==e.code);
+  adjustments = adjustments.filter(a=>a.empId!==id);
+  recomputeAll(); renderEmp(); toast('ลบแล้ว');
+}
+
+/* ================= DETAIL ================= */
+let detailEmpId = null;
+function openDetail(id){
+  detailEmpId = id;
+  renderDetail();
+  document.getElementById('detailBg').classList.add('show');
+}
+function renderDetail(){
+  const e = employees.find(x=>x.id===detailEmpId); if(!e) return;
+  const period = document.getElementById('periodSel').value || allPeriods()[0] || '';
+  const p = calcPay(e, period);
+  const ss = empShiftsInPeriod(e, period);
+  const maxH = Math.max(8, ...ss.map(s=>s.hours||0));
+  document.getElementById('detailModal').innerHTML = `
+    <button class="close" onclick="closeModal('detailBg')">✕</button>
+    <h2 class="font-display">${e.nick} <span class="muted" style="font-weight:400;font-size:14px">${e.full||''}</span></h2>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0 4px">
+      <span class="dept-chip">${e.dept||'–'}</span>
+      ${e.type==='monthly'?'<span class="chip chip-blue">รายเดือน '+THB(e.rate)+' บ.</span>':'<span class="chip chip-gray">รายวัน '+THB(e.rate)+' บ.</span>'}
+      <span class="muted">เข้างาน ${e.start} น. · รหัส ${e.code}</span>
+      <span style="flex:1"></span>
+      <button class="btn btn-light btn-sm" onclick="openEmpForm(${e.id})">✎ แก้ไขข้อมูล</button>
+    </div>
+
+    <div class="stats" style="margin-top:14px">
+      <div class="stat"><div class="v">${p.days}</div><div class="l">วันทำงาน (${period?periodLabel(period):'–'})</div></div>
+      <div class="stat"><div class="v">${p.hours?p.hours.toFixed(1):'0'} ชม.</div><div class="l">ชั่วโมงรวม</div></div>
+      <div class="stat"><div class="v">${p.lateCount}</div><div class="l">มาสาย (เกิน ${settings.grace} นาที)</div></div>
+      <div class="stat"><div class="v" style="color:var(--green)">${THB(p.net)} ฿</div><div class="l">คาดว่าจะได้รับสุทธิ</div></div>
+    </div>
+
+    <div class="grid g2" style="align-items:start">
+      <div>
+        <div class="section-title">การเข้างาน — ${period?periodLabel(period):''}</div>
+        <div class="tbl-wrap" style="max-height:340px;overflow-y:auto">
+        <table><thead><tr><th>วันที่</th><th>เข้า</th><th>ออก</th><th class="num">ชม.</th><th></th></tr></thead><tbody>
+        ${ss.length? ss.map(s=>{
+          const wd = WD_TH[new Date(s.day+'T12:00:00').getDay()];
+          const late = isLate(e,s);
+          return `<tr>
+            <td>${dayLabel(s.day)} <span class="muted">${wd}</span></td>
+            <td>${fmtT(s.in)}${late?' <span class="chip chip-amber">สาย</span>':''}</td>
+            <td>${s.single?'<span class="chip chip-red">ตอกครั้งเดียว</span>':fmtT(s.out)}</td>
+            <td class="num">${s.hours?s.hours.toFixed(1):'–'}</td>
+            <td><div class="hours-bar"><i style="width:${s.hours?Math.min(100,s.hours/maxH*100):0}%"></i></div></td>
+          </tr>`;
+        }).join('') : '<tr><td colspan="5"><div class="empty">ไม่มีข้อมูลในงวดนี้</div></td></tr>'}
+        </tbody></table></div>
+      </div>
+      <div>
+        <div class="section-title">เงินเดือนงวด ${period?periodLabel(period):''}</div>
+        <div class="tbl-wrap"><table><tbody>
+          <tr><td>ค่าแรง ${e.type==='monthly'?'(เหมาเดือน)':'('+p.days+' วัน × '+THB(e.rate)+')'}</td><td class="num">${THB2(p.base)}</td></tr>
+          ${p.adds.map(a=>`<tr><td style="color:var(--green)">＋ ${a.reason} <button class="btn btn-red btn-sm" style="padding:1px 7px" onclick="delAdj(${a.id})">✕</button></td><td class="num" style="color:var(--green)">${THB2(+a.amount)}</td></tr>`).join('')}
+          ${p.dedu.map(a=>`<tr><td style="color:var(--red)">－ ${a.reason} <button class="btn btn-red btn-sm" style="padding:1px 7px" onclick="delAdj(${a.id})">✕</button></td><td class="num" style="color:var(--red)">-${THB2(+a.amount)}</td></tr>`).join('')}
+          ${p.lateAuto? `<tr><td style="color:var(--red)">－ หักมาสายอัตโนมัติ (${p.lateCount} ครั้ง × ${THB(settings.lateFine)})</td><td class="num" style="color:var(--red)">-${THB2(p.lateAuto)}</td></tr>`:''}
+          <tr><td style="font-weight:700">สุทธิ</td><td class="num" style="font-weight:700;color:var(--green)">${THB2(p.net)}</td></tr>
+        </tbody></table></div>
+        <div style="display:flex;gap:8px;margin-top:10px">
+          <button class="btn btn-green btn-sm" onclick="openAdj(${e.id},'add','${period}')">＋ เพิ่มเงิน / OT / โบนัส</button>
+          <button class="btn btn-red btn-sm" onclick="openAdj(${e.id},'deduct','${period}')">－ หักเงิน</button>
+        </div>
+        ${p.singleCount? `<div class="warn-note" style="margin-top:12px;margin-bottom:0">⚠️ มี ${p.singleCount} วันที่ตอกบัตรครั้งเดียว (ลืมตอกเข้า/ออก) — ระบบนับเป็นวันทำงานแต่คำนวณชั่วโมงไม่ได้</div>`:''}
+      </div>
+    </div>`;
+}
+
+/* ================= ADJUSTMENTS ================= */
+function openAdj(empId, kind, period){
+  document.getElementById('adjEmpId').value = empId;
+  document.getElementById('adjKind').value = kind;
+  document.getElementById('adjTitle').textContent = kind==='add' ? '＋ เพิ่มเงิน (OT / โบนัส / อื่นๆ)' : '－ หักเงิน';
+  document.getElementById('adjReason').value = '';
+  document.getElementById('adjAmount').value = '';
+  if(period) document.getElementById('adjPeriod').value = period;
+  document.getElementById('adjBg').classList.add('show');
+}
+function saveAdj(){
+  const empId = +document.getElementById('adjEmpId').value;
+  const kind = document.getElementById('adjKind').value;
+  const reason = document.getElementById('adjReason').value.trim() || (kind==='add'?'เพิ่มเงิน':'หักเงิน');
+  const amount = +document.getElementById('adjAmount').value;
+  const period = document.getElementById('adjPeriod').value;
+  if(!amount || amount<=0) return toast('❌ กรุณาใส่จำนวนเงิน');
+  if(!period) return toast('❌ ยังไม่มีงวดเดือน (นำเข้าไฟล์ก่อน)');
+  adjustments.push({id:nextId++, empId, kind, reason, amount, period});
+  closeModal('adjBg'); renderDetail(); renderPayroll(); toast('บันทึกแล้ว');
+}
+function delAdj(id){ adjustments = adjustments.filter(a=>a.id!==id); renderDetail(); renderPayroll(); }
+
+/* ================= PAYROLL PAGE ================= */
+function renderPayroll(){
+  const period = document.getElementById('periodSel').value;
+  const tbl = document.getElementById('payTable');
+  if(!period){ tbl.innerHTML='<tr><td><div class="empty">ยังไม่มีข้อมูล — นำเข้าไฟล์ .xlsx ก่อน</div></td></tr>'; document.getElementById('payStats').innerHTML=''; return; }
+  const list = employees.filter(e=>e.active || empShiftsInPeriod(e,period).length)
+    .map(e=>({e, p:calcPay(e,period)}))
+    .sort((a,b)=> (a.e.dept||'').localeCompare(b.e.dept||'','th') || a.e.nick.localeCompare(b.e.nick,'th'));
+  const tot = list.reduce((a,x)=>({base:a.base+x.p.base, add:a.add+x.p.addSum, ded:a.ded+x.p.deduSum, net:a.net+x.p.net, days:a.days+x.p.days}),{base:0,add:0,ded:0,net:0,days:0});
+  document.getElementById('payStats').innerHTML = `
+    <div class="stat"><div class="v">${list.length}</div><div class="l">พนักงานในงวดนี้</div></div>
+    <div class="stat"><div class="v">${tot.days.toLocaleString()}</div><div class="l">วันทำงานรวม</div></div>
+    <div class="stat"><div class="v">${THB(tot.ded)} ฿</div><div class="l">หักรวม</div></div>
+    <div class="stat"><div class="v" style="color:var(--green)">${THB(tot.net)} ฿</div><div class="l">จ่ายสุทธิรวม</div></div>`;
+  tbl.innerHTML = `<thead><tr>
+      <th>พนักงาน</th><th>แผนก</th><th class="num">วัน</th><th class="num">ชม.</th><th class="num">สาย</th>
+      <th class="num">ค่าแรง</th><th class="num">เพิ่ม</th><th class="num">หัก</th><th class="num">สุทธิ</th><th></th>
+    </tr></thead><tbody>` +
+    list.map(({e,p})=>`<tr>
+      <td class="clickable" onclick="openDetail(${e.id})"><b style="color:var(--ember-deep)">${e.nick}</b> <span class="muted">${e.full||''}</span></td>
+      <td><span class="dept-chip">${e.dept||'–'}</span></td>
+      <td class="num">${p.days}</td>
+      <td class="num">${p.hours?p.hours.toFixed(0):'–'}</td>
+      <td class="num">${p.lateCount? '<span class="chip chip-amber">'+p.lateCount+'</span>':'–'}</td>
+      <td class="num">${THB(p.base)}</td>
+      <td class="num" style="color:${p.addSum?'var(--green)':'inherit'}">${p.addSum?'+'+THB(p.addSum):'–'}</td>
+      <td class="num" style="color:${p.deduSum?'var(--red)':'inherit'}">${p.deduSum?'-'+THB(p.deduSum):'–'}</td>
+      <td class="num" style="font-weight:700">${THB(p.net)}</td>
+      <td><button class="btn btn-light btn-sm" onclick="openDetail(${e.id})">รายละเอียด</button></td>
+    </tr>`).join('') +
+    `</tbody><tfoot><tr><td colspan="5">รวม ${list.length} คน</td>
+      <td class="num">${THB(tot.base)}</td><td class="num">+${THB(tot.add)}</td>
+      <td class="num">-${THB(tot.ded)}</td><td class="num">${THB(tot.net)}</td><td></td></tr></tfoot>`;
+}
+function exportPayrollXlsx(){
+  const period = document.getElementById('periodSel').value;
+  if(!period) return toast('❌ ยังไม่มีข้อมูล');
+  const rows = [['ชื่อเล่น','ชื่อ-นามสกุล','แผนก','ประเภท','อัตรา','วันทำงาน','ชั่วโมง','สาย(ครั้ง)','ค่าแรง','เพิ่ม','หัก','สุทธิ']];
+  employees.filter(e=>e.active || empShiftsInPeriod(e,period).length).forEach(e=>{
+    const p = calcPay(e,period);
+    rows.push([e.nick, e.full, e.dept, e.type==='monthly'?'รายเดือน':'รายวัน', +e.rate, p.days, +(p.hours.toFixed(1)), p.lateCount, p.base, p.addSum, p.deduSum, p.net]);
+  });
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols'] = [{wch:10},{wch:22},{wch:14},{wch:9},{wch:8},{wch:9},{wch:8},{wch:9},{wch:10},{wch:8},{wch:8},{wch:10}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Payroll '+period);
+  XLSX.writeFile(wb, 'payroll_'+period+'.xlsx');
+}
+
+/* ================= SAVE / LOAD ================= */
+function saveJSON(){
+  const blob = new Blob([JSON.stringify({settings, employees, punches, adjustments, nextId})], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'jjmk_payroll_'+new Date().toISOString().slice(0,10)+'.json';
+  a.click();
+  toast('💾 บันทึกไฟล์แล้ว');
+}
+function loadJSON(input){
+  const f = input.files[0]; if(!f) return;
+  const r = new FileReader();
+  r.onload = e => {
+    try{
+      const d = JSON.parse(e.target.result);
+      settings = d.settings||settings; employees = d.employees||[]; punches = d.punches||[]; adjustments = d.adjustments||[]; nextId = d.nextId||1;
+      document.getElementById('setCutoff').value = settings.cutoff;
+      document.getElementById('setGrace').value = settings.grace;
+      document.getElementById('setLateFine').value = settings.lateFine;
+      document.getElementById('setDefaultWage').value = settings.defaultWage;
+      recomputeAll(); renderEmp(); renderPayroll();
+      go('payroll'); toast('📂 เปิดข้อมูลเรียบร้อย');
+    }catch(err){ toast('❌ ไฟล์ไม่ถูกต้อง'); }
+  };
+  r.readAsText(f);
+  input.value='';
+}
+recomputeAll();
+</script>
+</body>
+</html>
