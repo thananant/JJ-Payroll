@@ -205,8 +205,15 @@ tfoot td{font-weight:700;background:#faf7f1;border-top:2px solid var(--line)}
 <div class="page" id="page-emp">
   <div class="stats" id="empStats"></div>
   <div class="toolbar">
-    <input type="search" id="empSearch" placeholder="ค้นหาชื่อ / แผนก…" oninput="renderEmp()">
+    <input type="search" id="empSearch" placeholder="ค้นหาชื่อเล่น / ชื่อจริง / รหัส / ตำแหน่ง…" oninput="renderEmp()" style="max-width:280px">
+    <select id="empBranchFilter" onchange="renderEmp()" style="max-width:170px">
+      <option value="">ทุกสาขา</option><option value="JJLP">ลาดพร้าว</option>
+      <option value="JJRD">รัชดา</option><option value="OFFICE">ออฟฟิศ</option>
+    </select>
     <select id="empDeptFilter" onchange="renderEmp()" style="max-width:200px"><option value="">ทุกแผนก</option></select>
+    <select id="empActiveFilter" onchange="renderEmp()" style="max-width:150px">
+      <option value="">ทุกสถานะ</option><option value="1">ทำงานอยู่</option><option value="0">พ้นสภาพ</option>
+    </select>
     <span style="flex:1"></span>
     <button class="btn btn-ember" onclick="openEmpForm()">＋ เพิ่มพนักงาน</button>
   </div>
@@ -216,12 +223,19 @@ tfoot td{font-weight:700;background:#faf7f1;border-top:2px solid var(--line)}
 <!-- ============ DETAIL ============ -->
 <div class="page" id="page-detail">
   <div class="toolbar">
+    <input type="search" id="detailSearch" placeholder="ค้นหาชื่อ / รหัส…" oninput="renderDetailSelector();renderDetail()" style="max-width:220px">
+    <select id="detailBranch" onchange="renderDetailSelector();renderDetail()" style="width:auto;min-width:140px">
+      <option value="">ทุกสาขา</option><option value="JJLP">ลาดพร้าว</option>
+      <option value="JJRD">รัชดา</option><option value="OFFICE">ออฟฟิศ</option>
+    </select>
+    <select id="detailDept" onchange="renderDetailSelector();renderDetail()" style="width:auto;min-width:150px"><option value="">ทุกแผนก</option></select>
     <label style="margin:0;display:flex;align-items:center;gap:8px;font-size:14px">พนักงาน:
-      <select id="detailEmpSel" onchange="detailEmpId=+this.value;renderDetail()" style="width:auto;min-width:200px"></select>
+      <select id="detailEmpSel" onchange="detailEmpId=+this.value;renderDetail()" style="width:auto;min-width:210px"></select>
     </label>
     <label style="margin:0;display:flex;align-items:center;gap:8px;font-size:14px">งวด:
-      <select id="detailPeriodSel" onchange="renderDetail()" style="width:auto;min-width:150px"></select>
+      <select id="detailPeriodSel" onchange="renderDetail()" style="width:auto;min-width:170px"></select>
     </label>
+    <span class="muted" id="detailCount"></span>
   </div>
   <div id="detailContent"><div class="card"><div class="empty">ยังไม่มีพนักงาน</div></div></div>
 </div>
@@ -929,27 +943,44 @@ const modeLabel = e => e.mode==='hourly'
   : (e.shiftId ? `<span class="chip chip-blue">${(shiftDefs.find(s=>s.id===e.shiftId)||{}).name||'?'}</span>`
                : `<span class="chip chip-gray">🔍 อัตโนมัติ</span>`);
 
+const empMatch = (e, q) => !q ||
+  (e.nick+' '+e.full+' '+e.dept+' '+e.code+' '+(e.position||'')).toLowerCase().includes(q);
+/* เติมรายการแผนกใน dropdown ให้เหลือเฉพาะแผนกของสาขาที่เลือก */
+function fillDeptSel(selId, branch){
+  const sel = document.getElementById(selId); if(!sel) return;
+  const cur = sel.value;
+  const depts = [...new Set(employees.filter(e=>!branch||e.branch===branch).map(e=>e.dept).filter(Boolean))]
+    .sort((a,b)=>a.localeCompare(b,'th'));
+  sel.innerHTML = '<option value="">ทุกแผนก</option>' +
+    depts.map(d=>`<option ${d===cur?'selected':''}>${d}</option>`).join('');
+  if(cur && !depts.includes(cur)) sel.value = '';
+}
+
 function renderEmp(){
-  const q = (document.getElementById('empSearch').value||'').toLowerCase();
+  const q  = (document.getElementById('empSearch').value||'').toLowerCase();
+  const bf = document.getElementById('empBranchFilter').value;
+  const af = document.getElementById('empActiveFilter').value;
+  fillDeptSel('empDeptFilter', bf);
   const df = document.getElementById('empDeptFilter').value;
-  const depts = [...new Set(employees.map(e=>e.dept).filter(Boolean))].sort();
-  const dfSel = document.getElementById('empDeptFilter'); const cur = dfSel.value;
-  dfSel.innerHTML = '<option value="">ทุกแผนก</option>'+depts.map(d=>`<option ${d===cur?'selected':''}>${d}</option>`).join('');
-  document.getElementById('deptList').innerHTML = depts.map(d=>`<option>${d}</option>`).join('');
+  document.getElementById('deptList').innerHTML =
+    [...new Set(employees.map(e=>e.dept).filter(Boolean))].sort().map(d=>`<option>${d}</option>`).join('');
 
   const list = employees.filter(e =>
-    (!df || e.dept===df) && (!q || (e.nick+' '+e.full+' '+e.dept+' '+e.code).toLowerCase().includes(q))
-  ).sort((a,b)=> b.active-a.active || (a.dept||'').localeCompare(b.dept||'','th') || a.nick.localeCompare(b.nick,'th'));
+    (!bf || e.branch===bf) && (!df || e.dept===df) &&
+    (af==='' || String(+e.active)===af) && empMatch(e, q)
+  ).sort((a,b)=> b.active-a.active || (a.branch||'').localeCompare(b.branch||'') ||
+                 (a.dept||'').localeCompare(b.dept||'','th') || a.nick.localeCompare(b.nick,'th'));
 
   const active = employees.filter(e=>e.active).length;
+  const filtered = (bf||df||af||q);
   document.getElementById('empStats').innerHTML = `
     <div class="stat"><div class="v">${active}</div><div class="l">พนักงานทำงานอยู่</div></div>
     <div class="stat"><div class="v">${employees.length-active}</div><div class="l">พ้นสภาพ</div></div>
-    <div class="stat"><div class="v">${depts.length}</div><div class="l">แผนก</div></div>
-    <div class="stat"><div class="v">${punches.length.toLocaleString()}</div><div class="l">รายการตอกบัตร</div></div>`;
+    <div class="stat"><div class="v">${[...new Set(employees.map(e=>e.dept).filter(Boolean))].length}</div><div class="l">แผนก</div></div>
+    <div class="stat"><div class="v" style="color:${filtered?'var(--ember)':'inherit'}">${list.length}</div><div class="l">${filtered?'ผลการค้นหา':'รวมทั้งหมด'}</div></div>`;
 
   const tbl = document.getElementById('empTable');
-  if(!list.length){ tbl.innerHTML = '<tr><td><div class="empty">ยังไม่มีพนักงาน — นำเข้าไฟล์ .xlsx หรือกด ＋ เพิ่มพนักงาน</div></td></tr>'; return; }
+  if(!list.length){ tbl.innerHTML = `<tr><td><div class="empty">${filtered?'ไม่พบพนักงานที่ตรงกับเงื่อนไข — ลองล้างตัวกรอง':'ยังไม่มีพนักงาน — นำเข้าไฟล์ .xlsx หรือกด ＋ เพิ่มพนักงาน'}</div></td></tr>`; return; }
   const period = allPeriods()[0];
   tbl.innerHTML = `<thead><tr>
       <th>ชื่อเล่น</th><th>ชื่อ-นามสกุล</th><th>สาขา</th><th>แผนก</th><th>ตำแหน่ง</th><th>รูปแบบ</th><th>ค่าแรง</th>
@@ -1058,13 +1089,37 @@ async function delEmp(id){
 
 /* ================= DETAIL PAGE ================= */
 let detailEmpId = null;
-function openDetail(id){ detailEmpId = id; go('detail'); }
+function openDetail(id){
+  detailEmpId = id;
+  // ล้างตัวกรองก่อน กันคนที่กดเข้ามาโดนกรองหายไป
+  for(const [k,v] of [['detailSearch',''],['detailBranch',''],['detailDept','']]){
+    const el = document.getElementById(k); if(el) el.value = v;
+  }
+  go('detail');
+}
 function renderDetailSelector(){
   const sel = document.getElementById('detailEmpSel');
-  const list = [...employees].sort((a,b)=> b.active-a.active || (a.dept||'').localeCompare(b.dept||'','th') || a.nick.localeCompare(b.nick,'th'));
-  sel.innerHTML = list.map(e=>`<option value="${e.id}">${e.nick}${e.dept?' — '+e.dept:''}${e.active?'':' (พ้นสภาพ)'}</option>`).join('');
-  if(!employees.find(x=>x.id===detailEmpId)) detailEmpId = list.length? list[0].id : null;
-  if(detailEmpId) sel.value = detailEmpId;
+  const q  = (document.getElementById('detailSearch').value||'').toLowerCase();
+  const bf = document.getElementById('detailBranch').value;
+  fillDeptSel('detailDept', bf);
+  const df = document.getElementById('detailDept').value;
+
+  const list = employees
+    .filter(e => (!bf || e.branch===bf) && (!df || e.dept===df) && empMatch(e, q))
+    .sort((a,b)=> b.active-a.active || (a.branch||'').localeCompare(b.branch||'') ||
+                  (a.dept||'').localeCompare(b.dept||'','th') || a.nick.localeCompare(b.nick,'th'));
+
+  const cnt = document.getElementById('detailCount');
+  if(cnt) cnt.textContent = (q||bf||df) ? `พบ ${list.length} คน` : `${list.length} คน`;
+
+  if(!list.length){ sel.innerHTML = '<option value="">– ไม่พบพนักงาน –</option>'; detailEmpId = null; return; }
+  sel.innerHTML = list.map(e=>{
+    const b = (BR[e.branch]||{}).t;
+    return `<option value="${e.id}">${e.nick}${e.full?' ('+e.full.split(' ')[0]+')':''}${b?' · '+b:''}${e.dept?' · '+e.dept:''}${e.active?'':' (พ้นสภาพ)'}</option>`;
+  }).join('');
+  // ถ้าคนที่เลือกอยู่ไม่อยู่ในผลกรองแล้ว ให้เด้งไปคนแรก
+  if(!list.find(x=>x.id===detailEmpId)) detailEmpId = list[0].id;
+  sel.value = detailEmpId;
 }
 function renderDetail(){
   const e = employees.find(x=>x.id===detailEmpId);
