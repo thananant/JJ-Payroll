@@ -375,6 +375,7 @@ async function loadAll(){
     document.getElementById('setDefaultWage').value = settings.defaultWage;
 
     await loadPunches();
+    seenSet = null; // ให้ realtime สร้างชุดกันซ้ำใหม่จากข้อมูลล่าสุด
     recomputeAll(); renderShifts(); renderAll();
     conn(true, 'เชื่อมต่อแล้ว · '+employees.length+' คน');
   }catch(e){ dbErr(e,'โหลดข้อมูล'); }
@@ -979,8 +980,57 @@ async function saveSetting(field, val){
   recomputeAll(); renderAll(); toast('บันทึกแล้ว');
 }
 
+/* ================= REALTIME : sync สดจากฐานข้อมูล ================= */
+/* เครื่องสแกน -> Worker -> Supabase -> (websocket push) -> หน้าเว็บนี้ทันที */
+let rtQueue = 0, rtTimer = null;
+const punchSeen = () => new Set(punches.map(p=>p.code+'|'+p.date+'|'+p.time));
+let seenSet = null;
+
+function startRealtime(){
+  try{
+  db.channel('jjmk-live')
+    // รายการตอกบัตรใหม่
+    .on('postgres_changes', { event:'INSERT', schema:'public', table:'punches' }, (payload)=>{
+      const r = payload.new;
+      if(!seenSet) seenSet = punchSeen();
+      const k = r.emp_code+'|'+r.punch_date+'|'+String(r.punch_time).slice(0,5);
+      if(seenSet.has(k)) return;
+      seenSet.add(k);
+      punches.push({ code:r.emp_code, date:r.punch_date, time:String(r.punch_time).slice(0,5) });
+      rtQueue++; scheduleRtRefresh();
+    })
+    // พนักงานใหม่ที่ Worker สร้างให้อัตโนมัติ
+    .on('postgres_changes', { event:'INSERT', schema:'public', table:'employees' }, (payload)=>{
+      if(!employees.find(e=>e.id===payload.new.id)){
+        employees.push(fromDbEmp(payload.new));
+        rtQueue++; scheduleRtRefresh();
+      }
+    })
+    // แก้ไขพนักงานจากเครื่องอื่น/คนอื่น
+    .on('postgres_changes', { event:'UPDATE', schema:'public', table:'employees' }, (payload)=>{
+      const i = employees.findIndex(e=>e.id===payload.new.id);
+      if(i>=0){ employees[i] = fromDbEmp(payload.new); rtQueue++; scheduleRtRefresh(); }
+    })
+    .subscribe((status)=>{
+      if(status === 'SUBSCRIBED') conn(true, 'sync สด · '+employees.length+' คน');
+      if(status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') conn(false, 'sync หลุด — กด 🔄');
+    });
+  }catch(e){ console.error('realtime', e); conn(true, 'เชื่อมต่อแล้ว (ไม่มี sync สด)'); }
+}
+
+/* รวมหลายรายการที่มาติดๆ กัน (เช่นตอนเครื่องไล่คิวของเก่า) แล้วคำนวณทีเดียว */
+function scheduleRtRefresh(){
+  clearTimeout(rtTimer);
+  rtTimer = setTimeout(()=>{
+    recomputeAll();
+    renderAll();
+    toast('🔄 ข้อมูลใหม่ +' + rtQueue.toLocaleString());
+    rtQueue = 0;
+  }, 1500);
+}
+
 /* ================= BOOT ================= */
-loadAll();
+loadAll().then(startRealtime);
 </script>
 </body>
 </html>
