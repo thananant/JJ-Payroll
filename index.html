@@ -110,6 +110,16 @@ td input,td select{padding:5px 8px;font-size:13.5px}
 .hours-bar{height:5px;background:#eee6da;border-radius:99px;overflow:hidden;min-width:70px}
 .hours-bar i{display:block;height:100%;background:var(--ember)}
 tfoot td{font-weight:700;background:#faf7f1;border-top:2px solid var(--line)}
+/* คอลัมน์ปุ่มติดขวาเสมอ ไม่โดนตัด */
+table.sticky-act th:last-child, table.sticky-act td:last-child{
+  position:sticky; right:0; background:#fff; text-align:right; white-space:nowrap;
+  box-shadow:-6px 0 8px -6px rgba(0,0,0,.14); z-index:2;
+}
+table.sticky-act th:last-child{background:#faf7f1;z-index:3}
+table.sticky-act tbody tr:hover td:last-child{background:#fdfaf5}
+table.sticky-act tfoot td:last-child{background:#faf7f1}
+.act{display:inline-flex;gap:4px}
+.act .btn{padding:4px 8px;font-size:13px;border-radius:7px;line-height:1.2}
 /* ===== calendar ===== */
 .cal{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;min-width:640px}
 .cal .wd{font-family:'Prompt',sans-serif;font-size:12.5px;color:var(--ink-soft);text-align:center;padding:4px 0}
@@ -276,9 +286,23 @@ tfoot td{font-weight:700;background:#faf7f1;border-top:2px solid var(--line)}
     <label style="margin:0;display:flex;align-items:center;gap:8px;font-size:14px">งวด:
       <select id="periodSel" onchange="renderPayroll()" style="width:auto;min-width:200px"></select>
     </label>
-    <select id="payBranch" onchange="renderPayroll()" style="width:auto;min-width:150px">
+    <input type="search" id="paySearch" placeholder="ค้นหาชื่อ / รหัส / ตำแหน่ง…" oninput="renderPayroll()" style="max-width:230px">
+    <select id="payBranch" onchange="renderPayroll()" style="width:auto;min-width:140px">
       <option value="">ทุกสาขา</option><option value="JJLP">ลาดพร้าว</option>
       <option value="JJRD">รัชดา</option><option value="OFFICE">ออฟฟิศ</option>
+    </select>
+    <select id="payDept" onchange="renderPayroll()" style="width:auto;min-width:150px"><option value="">ทุกแผนก</option></select>
+    <select id="payMode" onchange="renderPayroll()" style="width:auto;min-width:150px">
+      <option value="">ทุกรูปแบบ</option><option value="shift">เข้ากะ</option>
+      <option value="hours">นับชั่วโมง</option><option value="hourly">รายชั่วโมง</option>
+    </select>
+    <select id="payFlag" onchange="renderPayroll()" style="width:auto;min-width:160px">
+      <option value="">ทั้งหมด</option>
+      <option value="single">⚠️ มีลืมตอกบัตร</option>
+      <option value="late">⚠️ มีสาย/ขาด</option>
+      <option value="adv">💵 เบิกกลางเดือนแล้ว</option>
+      <option value="bonus">🎌 มีเบี้ยพิเศษ</option>
+      <option value="cross">🔀 ทำงานข้ามสาขา</option>
     </select>
     <span style="flex:1"></span>
     <button class="btn btn-light" onclick="exportPayrollXlsx()">📤 Export Excel</button>
@@ -742,7 +766,7 @@ async function handleFile(file){
     const H = rows[hi], col = n => H.indexOf(n);
     const cFn=col('First Name'), cLn=col('Last Name'), cId=col('ID'), cDp=col('Department'), cDt=col('Date'), cTm=col('Time');
 
-    const newEmpMap = new Map(), pRows = [];
+    const newEmpMap = new Map(), pRows = [], fileInfo = new Map();
     let bad = 0;
     const seen = new Set();
     for(let i=hi+1;i<rows.length;i++){
@@ -750,10 +774,20 @@ async function handleFile(file){
       const code = String(r[cId]).trim();
       const d = parseDate(String(r[cDt]||'').trim()), t = parseTime(String(r[cTm]||'').trim());
       if(!d||!t){ bad++; continue; }
+      if(!fileInfo.has(code)){
+        const fn = String(r[cFn]||'').trim();
+        const ln = String(r[cLn]||'').trim();
+        const sp = fn.indexOf(' ');
+        fileInfo.set(code, {
+          nick: sp>0 ? fn.slice(0,sp) : fn,                       // "โก้ SAW KANO" -> "โก้"
+          full: (ln==='--'||!ln) ? (sp>0 ? fn.slice(sp+1).trim() : '') : ln,
+          dept: String(r[cDp]||'').trim(),
+        });
+      }
       if(!employees.find(x=>x.code===code) && !newEmpMap.has(code)){
-        newEmpMap.set(code, { code, nick:String(r[cFn]||'').trim()||code,
-          full_name:(String(r[cLn]||'').trim()==='--'?'':String(r[cLn]||'').trim()),
-          dept:String(r[cDp]||'').trim(), wage_type:'daily', rate:settings.defaultWage,
+        const fi = fileInfo.get(code);
+        newEmpMap.set(code, { code, nick:fi.nick||code, full_name:fi.full, dept:fi.dept,
+          wage_type:'daily', rate:settings.defaultWage,
           work_mode:'shift', shift_id:null, target_hours:10, active:true });
       }
       const k = code+'|'+d+'|'+t;
@@ -767,6 +801,22 @@ async function handleFile(file){
     if(newEmps.length){
       busy(true,'เพิ่มพนักงานใหม่ '+newEmps.length+' คน…');
       const { error } = await db.from('employees').upsert(newEmps, { onConflict:'code', ignoreDuplicates:true });
+      if(error) throw error;
+    }
+
+    // 1.5) อัปเดตแผนก / ชื่อ-นามสกุล ของคนที่มีอยู่แล้ว (สาขาจะเติมตามแผนกเองด้วย trigger)
+    const upd = [];
+    for(const [code, fi] of fileInfo){
+      const e = employees.find(x=>x.code===code); if(!e) continue;
+      const patch = {};
+      if(fi.dept && fi.dept !== e.dept) patch.dept = fi.dept;
+      if(fi.full && !e.full)            patch.full_name = fi.full;
+      if(fi.nick && (!e.nick || e.nick === e.code)) patch.nick = fi.nick;
+      if(Object.keys(patch).length) upd.push({ id:e.id, patch });
+    }
+    for(let i=0;i<upd.length;i++){
+      busy(true,'อัปเดตแผนก/ชื่อพนักงาน '+(i+1)+' / '+upd.length+'…');
+      const { error } = await db.from('employees').update(upd[i].patch).eq('id', upd[i].id);
       if(error) throw error;
     }
 
@@ -791,11 +841,15 @@ async function handleFile(file){
         <div class="stats" style="margin-bottom:12px">
           <div class="stat"><div class="v">${pRows.length.toLocaleString()}</div><div class="l">รายการที่ส่งเข้าระบบ</div></div>
           <div class="stat"><div class="v">${newEmps.length}</div><div class="l">พนักงานใหม่ที่เพิ่มให้</div></div>
-          <div class="stat"><div class="v">${bad}</div><div class="l">แถวที่อ่านไม่ได้</div></div>
+          <div class="stat"><div class="v" style="color:${upd.length?'var(--green)':'inherit'}">${upd.length}</div><div class="l">อัปเดตแผนก/ชื่อ</div></div>
           <div class="stat"><div class="v">${periods.length?periods.map(periodLabel).join(', '):'–'}</div><div class="l">งวดที่มีข้อมูล</div></div>
         </div>
         <div class="muted">จับกะอัตโนมัติได้: ${Object.entries(byShift).map(([k,v])=>`<b>${k}</b> ${v} วัน`).join(' · ')||'–'}</div>
         <div class="muted" style="margin-top:6px">รายการที่เคยนำเข้าแล้วระบบจะข้ามให้อัตโนมัติ — นำเข้าไฟล์เดิมซ้ำได้ ไม่เบิ้ล</div>
+        ${upd.length? `<div class="warn-note" style="margin-top:10px;margin-bottom:0;background:#e9f7ec;border-color:#c3e6cb;color:#1e6b2e">
+          ✅ เติม<b>แผนก</b>ให้พนักงาน ${upd.length} คนแล้ว → <b>สาขาเติมตามให้อัตโนมัติ</b>
+          (RD- = รัชดา · 00-Office = ออฟฟิศ · ที่เหลือ = ลาดพร้าว) ตัวกรองสาขาใช้งานได้แล้ว</div>`:''}
+        ${bad? `<div class="muted" style="margin-top:6px">⚠️ มี ${bad} แถวที่อ่านวันที่/เวลาไม่ได้ ข้ามไป</div>`:''}
         <div style="margin-top:14px;display:flex;gap:10px">
           <button class="btn btn-ember" onclick="go('emp')">ไปหน้าพนักงาน →</button>
           <button class="btn btn-light" onclick="go('payroll')">ดูสรุปเงินเดือน</button>
@@ -1120,6 +1174,7 @@ function renderEmp(){
   const tbl = document.getElementById('empTable');
   if(!list.length){ tbl.innerHTML = `<tr><td><div class="empty">${filtered?'ไม่พบพนักงานที่ตรงกับเงื่อนไข — ลองล้างตัวกรอง':'ยังไม่มีพนักงาน — นำเข้าไฟล์ .xlsx หรือกด ＋ เพิ่มพนักงาน'}</div></td></tr>`; return; }
   const period = allPeriods()[0];
+  tbl.className = 'sticky-act';
   tbl.innerHTML = `<thead><tr>
       <th>ชื่อเล่น</th><th>ชื่อ-นามสกุล</th><th>สาขา</th><th>แผนก</th><th>ตำแหน่ง</th><th>รูปแบบ</th><th>ค่าแรง</th>
       <th class="num">วัน${period?' ('+periodLabel(period)+')':''}</th><th>สถานะ</th><th></th>
@@ -1136,11 +1191,11 @@ function renderEmp(){
         <td class="num">${THB(e.rate)}${e.mode==='hourly'?'/ชม.':e.type==='monthly'?'/ด.':'/วัน'}</td>
         <td class="num">${days||'–'}</td>
         <td>${e.active?'<span class="chip chip-green">ทำงานอยู่</span>':'<span class="chip chip-red">พ้นสภาพ</span>'}</td>
-        <td style="text-align:right">
-          <button class="btn btn-light btn-sm" onclick="openDetail(${e.id})">รายละเอียด</button>
-          <button class="btn btn-light btn-sm" onclick="openEmpForm(${e.id})">แก้ไข</button>
-          <button class="btn btn-red btn-sm" onclick="delEmp(${e.id})">ลบ</button>
-        </td></tr>`;
+        <td><div class="act">
+          <button class="btn btn-light" title="ดูรายละเอียด" onclick="openDetail(${e.id})">👁</button>
+          <button class="btn btn-light" title="แก้ไขข้อมูล" onclick="openEmpForm(${e.id})">✎</button>
+          <button class="btn btn-red" title="ลบพนักงาน" onclick="delEmp(${e.id})">🗑</button>
+        </div></td></tr>`;
     }).join('') + '</tbody>';
 }
 function toggleOffFields(){
@@ -1639,6 +1694,7 @@ function renderAdv(){
     <div class="stat"><div class="v" style="color:var(--red)">${THB(tot.taken)} ฿</div><div class="l">เบิกไปแล้ว</div></div>
     <div class="stat"><div class="v" style="color:var(--green)">${THB(tot.left)} ฿</div><div class="l">เบิกได้อีก</div></div>`;
 
+  tbl.className = 'sticky-act';
   tbl.innerHTML = `<thead><tr>
     <th>พนักงาน</th><th>สาขา</th><th class="num">วัน (ถึง ${dayLabel(r.adv)})</th>
     <th class="num">ค่าแรงที่ทำมา</th><th class="num">${Math.round(settings.advRatio*100)}%</th>
@@ -1776,23 +1832,37 @@ function renderPayroll(){
   const period = document.getElementById('periodSel').value;
   const tbl = document.getElementById('payTable');
   if(!period){ tbl.innerHTML='<tr><td><div class="empty">ยังไม่มีข้อมูล — นำเข้าไฟล์ .xlsx ก่อน</div></td></tr>'; document.getElementById('payStats').innerHTML=''; return; }
+  if(!employees.length){ tbl.innerHTML='<tr><td><div class="empty">ยังไม่มีพนักงาน</div></td></tr>'; return; }
   const bf = (document.getElementById('payBranch')||{}).value || '';
+  const q  = (document.getElementById('paySearch').value||'').toLowerCase();
+  fillDeptSel('payDept', bf);
+  const df = document.getElementById('payDept').value;
+  const mf = document.getElementById('payMode').value;
+  const ff = document.getElementById('payFlag').value;
   const r = periodRange(period);
   document.getElementById('payPeriodInfo').innerHTML =
     `รอบ <b>${periodRangeLabel(period)}</b> · จ่าย <b>${dayLabel(r.pay)}</b> · เบิกกลางเดือนได้ <b>${dayLabel(r.adv)}</b>`;
-  const list = employees.filter(e=>(e.active || empShiftsInPeriod(e,period).length) && (!bf || e.branch===bf))
+  const flagOk = (p) => !ff ||
+    (ff==='single' && p.singleCount>0) || (ff==='late' && p.missMin>0) ||
+    (ff==='adv' && p.advSum>0) || (ff==='bonus' && (p.holiBonus>0||p.noOffBonus>0)) ||
+    (ff==='cross' && p.crossDays.length>0);
+  const list = employees
+    .filter(e=>(e.active || empShiftsInPeriod(e,period).length) &&
+               (!bf || e.branch===bf) && (!df || e.dept===df) && (!mf || e.mode===mf) && empMatch(e, q))
     .map(e=>({e, p:calcPay(e,period)}))
+    .filter(x=>flagOk(x.p))
     .sort((a,b)=> (a.e.branch||'').localeCompare(b.e.branch||'') || (a.e.dept||'').localeCompare(b.e.dept||'','th') || a.e.nick.localeCompare(b.e.nick,'th'));
   const tot = list.reduce((a,x)=>({base:a.base+x.p.base, add:a.add+x.p.addSum, ded:a.ded+x.p.deduSum,
     net:a.net+x.p.net, days:a.days+x.p.days, miss:a.miss+x.p.missMin,
     single:a.single+x.p.singleCount, adv:a.adv+x.p.advSum,
     fullHrs:a.fullHrs+(x.e.mode==='hourly'?x.p.fullHrs:0)}),{base:0,add:0,ded:0,net:0,days:0,miss:0,single:0,adv:0,fullHrs:0});
   document.getElementById('payStats').innerHTML = `
-    <div class="stat"><div class="v">${list.length}</div><div class="l">พนักงานในงวดนี้</div></div>
+    <div class="stat"><div class="v" style="color:${(bf||df||mf||ff||q)?'var(--ember)':'inherit'}">${list.length}</div><div class="l">${(bf||df||mf||ff||q)?'ผลการค้นหา':'พนักงานในงวดนี้'}</div></div>
     <div class="stat"><div class="v">${tot.days.toLocaleString()}</div><div class="l">วันทำงานรวม</div></div>
     <div class="stat"><div class="v" style="color:${tot.single?'var(--red)':'inherit'}">${tot.single}</div><div class="l">ลืมตอกบัตร (ครั้ง)</div></div>
     <div class="stat"><div class="v">${THB(tot.ded)} ฿</div><div class="l">หักรวม</div></div>
     <div class="stat"><div class="v" style="color:var(--green)">${THB(tot.net)} ฿</div><div class="l">จ่ายสุทธิรวม</div></div>`;
+  tbl.className = 'sticky-act';
   tbl.innerHTML = `<thead><tr>
       <th>พนักงาน</th><th>สาขา</th><th>แผนก</th><th class="num">วัน</th><th class="num">ชม.</th>
       <th class="num">ชม.เต็ม</th><th class="num">ขาด (น.)</th><th class="num">ลืมตอก</th><th class="num">เบิกแล้ว</th>
@@ -1812,7 +1882,10 @@ function renderPayroll(){
       <td class="num" style="color:${p.addSum?'var(--green)':'inherit'}" title="${[p.noOffBonus?'เบี้ยไม่หยุด '+THB(p.noOffBonus):'',p.holiBonus?'เบี้ยวันหยุดพิเศษ '+THB(p.holiBonus):''].filter(Boolean).join(' · ')}">${p.addSum?'+'+THB(p.addSum):'–'}</td>
       <td class="num" style="color:${p.deduSum?'var(--red)':'inherit'}">${p.deduSum?'-'+THB(p.deduSum):'–'}</td>
       <td class="num" style="font-weight:700">${THB(p.net)}</td>
-      <td><button class="btn btn-light btn-sm" onclick="openSlip(${e.id},'${period}')">🧾 ใบสรุป</button></td>
+      <td><div class="act">
+        <button class="btn btn-light" title="ดูรายละเอียด" onclick="openDetail(${e.id})">👁</button>
+        <button class="btn btn-ember" title="ใบสรุปเงินเดือน" onclick="openSlip(${e.id},'${period}')">🧾</button>
+      </div></td>
     </tr>`).join('') +
     `</tbody><tfoot><tr><td colspan="5">รวม ${list.length} คน</td><td class="num">${tot.fullHrs||'–'}</td><td class="num">${tot.miss}</td>
       <td class="num">${tot.single||'–'}</td><td class="num">-${THB(tot.adv)}</td>
@@ -1822,8 +1895,11 @@ function renderPayroll(){
 function exportPayrollXlsx(){
   const period = document.getElementById('periodSel').value;
   if(!period) return toast('❌ ยังไม่มีข้อมูล');
+  const bf2 = (document.getElementById('payBranch')||{}).value||'';
+  const df2 = (document.getElementById('payDept')||{}).value||'';
   const rows = [['ชื่อเล่น','ชื่อ-นามสกุล','สาขา','แผนก','ตำแหน่ง','รูปแบบ','ประเภท','อัตรา','วันทำงาน','ชั่วโมง','สาย(ครั้ง)','สาย(นาที)','ออกก่อน(นาที)','ชม.ขาด(นาที)','ชม.เต็ม(รายชั่วโมง)','ไม่หยุด(วัน)','เบี้ยไม่หยุด','วันหยุดพิเศษ(ได้)','เบี้ยวันหยุด','ข้ามสาขา(วัน)','สาขาที่ทำงาน','ลืมตอก(ครั้ง)','ลืมตอก(วันที่)','เบิกกลางเดือน','ค่าแรง','เพิ่ม','หัก','สุทธิ']];
-  employees.filter(e=>e.active || empShiftsInPeriod(e,period).length).forEach(e=>{
+  employees.filter(e=>(e.active || empShiftsInPeriod(e,period).length) &&
+                      (!bf2||e.branch===bf2) && (!df2||e.dept===df2)).forEach(e=>{
     const p = calcPay(e,period);
     const md = e.mode==='hourly' ? 'รายชั่วโมง' : e.mode==='hours' ? 'นับ '+(e.target||10)+' ชม.' : (e.shiftId? (shiftDefs.find(s=>s.id===e.shiftId)||{}).name : 'กะอัตโนมัติ');
     rows.push([e.nick, e.full, (BR[e.branch]||{}).t||'', e.dept, e.position||'', md,
