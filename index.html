@@ -342,6 +342,20 @@ tfoot td{font-weight:700;background:#faf7f1;border-top:2px solid var(--line)}
         </select></div>
     </div>
     <p class="muted" style="margin-top:6px">ระบบใช้ค่าที่<b>น้อยกว่า</b>ระหว่างสองอันนี้เป็นเพดานเบิก</p>
+
+    <div class="section-title">การนับชั่วโมง (พนักงานรายชั่วโมง)</div>
+    <select id="setHourRule" onchange="saveSetting('hour_rule', this.value)" style="max-width:420px">
+      <option value="block">นับช่วงชั่วโมงเต็มตามนาฬิกา — ต้องอยู่ครบทั้งชั่วโมงนั้น</option>
+      <option value="floor">นับเวลารวมแล้วปัดเศษนาทีทิ้ง</option>
+    </select>
+    <div class="tbl-wrap" style="margin-top:10px;max-width:560px"><table>
+      <thead><tr><th>เข้า–ออก</th><th class="num">นับตามนาฬิกา</th><th class="num">ปัดเศษทิ้ง</th></tr></thead>
+      <tbody>
+        <tr><td>19:46 → 23:00</td><td class="num">3 ชม.</td><td class="num">3 ชม.</td></tr>
+        <tr><td>19:00 → 23:59</td><td class="num">4 ชม.</td><td class="num">4 ชม.</td></tr>
+        <tr><td><b>19:30 → 23:30</b></td><td class="num"><b>3 ชม.</b></td><td class="num"><b>4 ชม.</b></td></tr>
+      </tbody></table></div>
+    <p class="muted" style="margin-top:6px">แถวสุดท้ายคือจุดที่ 2 แบบต่างกัน — <b>นับตามนาฬิกา</b> ต้องอยู่ครบตั้งแต่ต้นชั่วโมงถึงท้ายชั่วโมงถึงจะนับ</p>
     <div class="warn-note" style="margin-top:18px;margin-bottom:0">💡 ข้อมูลทั้งหมดเก็บใน Supabase (jjmk-stock) บันทึกอัตโนมัติทุกครั้งที่แก้ ไม่ต้องกดเซฟ<br>⚠️ แผนฟรีไม่มี backup รายวันอัตโนมัติ — แนะนำกด <b>💾 ดาวน์โหลดสำรอง</b> เก็บไฟล์ไว้เดือนละครั้ง</div>
   </div>
 </div>
@@ -374,14 +388,15 @@ tfoot td{font-weight:700;background:#faf7f1;border-top:2px solid var(--line)}
       <div><label>ประเภทค่าแรง</label>
         <select id="fType"><option value="daily">รายวัน</option><option value="monthly">รายเดือน</option></select>
       </div>
-      <div><label>อัตราค่าแรง (บาท)</label><input type="number" id="fRate" value="400"></div>
+      <div><label id="fRateLabel">อัตราค่าแรง (บาท)</label><input type="number" id="fRate" value="400"></div>
     </div>
     <div class="section-title" style="margin-bottom:10px">รูปแบบการทำงาน</div>
     <div class="grid g2">
       <div><label>รูปแบบ</label>
         <select id="fMode" onchange="toggleModeFields()">
           <option value="shift">เข้ากะ — ยึดเวลากะ (พนักงานร้าน)</option>
-          <option value="hours">นับชั่วโมง — เข้าเวลาไหนก็ได้ (ออฟฟิศ/ผจก.)</option>
+          <option value="hours">นับชั่วโมง — เข้าเวลาไหนก็ได้ ต้องครบเป้า (ออฟฟิศ/ผจก.)</option>
+          <option value="hourly">รายชั่วโมง — จ่ายตามชั่วโมงเต็มที่ทำได้ (พาร์ทไทม์)</option>
         </select>
       </div>
       <div id="fShiftWrap"><label>กะ</label>
@@ -393,6 +408,10 @@ tfoot td{font-weight:700;background:#faf7f1;border-top:2px solid var(--line)}
       <div><label>สถานะ</label>
         <select id="fActive"><option value="1">ทำงานอยู่</option><option value="0">พ้นสภาพ</option></select>
       </div>
+    </div>
+    <div class="warn-note" id="fHourlyNote" style="display:none;margin-top:12px;margin-bottom:0">
+      💡 <b>รายชั่วโมง:</b> จ่ายตาม<b>ชั่วโมงเต็ม</b>ที่ทำได้ × อัตรา/ชม. — ไม่คิดสาย ไม่คิดออกก่อน
+      (มาช้าก็ได้ชั่วโมงน้อยลงเอง) กติกาการนับเศษนาทีตั้งได้ที่หน้า ⚙️ ตั้งค่า
     </div>
     <div style="display:flex;gap:10px;margin-top:20px;justify-content:flex-end">
       <button class="btn btn-light" onclick="closeModal('formBg')">ยกเลิก</button>
@@ -458,7 +477,7 @@ const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 /* ================= STATE ================= */
 let settings = { cutoff:6, defaultWage:400, minFine:0, lateFine:0, loadMonths:8,
-                 cutDay:25, payDay:5, advDay:15, advMax:3000, advRatio:0.5, singleFine:200 };
+                 cutDay:25, payDay:5, advDay:15, advMax:3000, advRatio:0.5, singleFine:200, hourRule:'block' };
 let advances = [];
 let shiftDefs = [];
 let employees = [];   // {id,code,nick,full,dept,type,rate,mode,shiftId,target,active}
@@ -514,14 +533,14 @@ async function loadAll(){
       minFine:+st.data.min_fine, lateFine:+st.data.late_fine,
       cutDay:st.data.cut_day??25, payDay:st.data.pay_day??5, advDay:st.data.adv_day??15,
       advMax:+(st.data.adv_max??3000), advRatio:+(st.data.adv_ratio??0.5),
-      singleFine:+(st.data.single_fine??200) };
+      singleFine:+(st.data.single_fine??200), hourRule:st.data.hour_rule||'block' };
 
     document.getElementById('setCutoff').value = settings.cutoff;
     document.getElementById('setMinFine').value = settings.minFine;
     document.getElementById('setLateFine').value = settings.lateFine;
     document.getElementById('setDefaultWage').value = settings.defaultWage;
     for(const [id,k] of [['setSingleFine','singleFine'],['setCutDay','cutDay'],['setPayDay','payDay'],
-                         ['setAdvDay','advDay'],['setAdvMax','advMax'],['setAdvRatio','advRatio']]){
+                         ['setAdvDay','advDay'],['setAdvMax','advMax'],['setAdvRatio','advRatio'],['setHourRule','hourRule']]){
       const el = document.getElementById(id); if(el) el.value = settings[k];
     }
 
@@ -720,7 +739,14 @@ function recomputeAll(){
     const emp = employees.find(x=>x.code===code);
     const rec = {day, single:false, lateMin:0, earlyMin:0, shortMin:0, missMin:0, shiftName:'–'};
 
-    if(emp && emp.mode==='hours'){
+    if(emp && emp.mode==='hourly'){
+      rec.in = ts[0]; rec.out = ts[ts.length-1];
+      rec.single = ts.length===1 || rec.in.getTime()===rec.out.getTime();
+      rec.hours = rec.single ? null : (rec.out-rec.in)/3600000;
+      rec.fullHours = rec.single ? 0 : fullHours(rec.in, rec.out);
+      rec.shiftName = 'รายชั่วโมง';
+      // รายชั่วโมงไม่คิดสาย/ออกก่อน — มาช้าก็ได้ชั่วโมงน้อยลงเอง
+    } else if(emp && emp.mode==='hours'){
       rec.in = ts[0]; rec.out = ts[ts.length-1];
       rec.single = ts.length===1 || rec.in.getTime()===rec.out.getTime();
       rec.hours = rec.single ? null : (rec.out-rec.in)/3600000;
@@ -753,7 +779,7 @@ function recomputeAll(){
 
   // รอบสอง: คนโหมดนับชั่วโมงไม่มีเวลากะให้เทียบ -> ใช้เวลาเข้า-ออกเฉลี่ยของตัวเอง
   for(const emp of employees){
-    if(emp.mode !== 'hours') continue;
+    if(emp.mode !== 'hours' && emp.mode !== 'hourly') continue;
     const list = shifts[emp.code]; if(!list) continue;
     const full = list.filter(r=>!r.single);
     const mins = d => d.getHours()*60 + d.getMinutes();
@@ -767,6 +793,21 @@ function recomputeAll(){
     }
   }
   refreshPeriodSelectors();
+}
+/* ---- นับชั่วโมงเต็มสำหรับพนักงานรายชั่วโมง ----
+   block : นับเฉพาะช่วงชั่วโมงเต็มตามนาฬิกา ที่อยู่ครบทั้งชั่วโมงนั้น
+           19:46-23:00 -> 20-21,21-22,22-23 = 3 · 19:00-23:59 -> 19-20..22-23 = 4
+   floor : เอาเวลารวมมาปัดเศษนาทีทิ้ง
+           19:46-23:00 = 3.23 -> 3 · 19:00-23:59 = 4.98 -> 4                      */
+function fullHours(tin, tout){
+  if(!tin || !tout || tout <= tin) return 0;
+  if((settings.hourRule||'block') === 'floor')
+    return Math.floor((tout - tin) / 3600000);
+  const s = new Date(tin);
+  if(s.getMinutes() || s.getSeconds() || s.getMilliseconds()) s.setHours(s.getHours()+1, 0, 0, 0);
+  else s.setMinutes(0,0,0);
+  const e = new Date(tout); e.setMinutes(0,0,0);
+  return Math.max(0, Math.floor((e - s) / 3600000));
 }
 const singleLabel = k => k==='in' ? 'ลืมตอกเข้า' : k==='out' ? 'ลืมตอกออก' : 'ตอกครั้งเดียว';
 function empShiftsInPeriod(emp, period){ return (shifts[emp.code]||[]).filter(s=>periodOf(s.day)===period); }
@@ -796,7 +837,10 @@ function calcPay(emp, period){
   const lateMin = ss.reduce((a,s)=>a+s.lateMin,0);
   const earlyMin = ss.reduce((a,s)=>a+s.earlyMin,0);
   const shortMin = ss.reduce((a,s)=>a+s.shortMin,0);
-  const base = emp.type==='monthly' ? (days>0? +emp.rate : 0) : days * +emp.rate;
+  const fullHrs = ss.reduce((a,s)=>a+(s.fullHours||0),0);
+  const base = emp.mode==='hourly' ? fullHrs * +emp.rate
+             : emp.type==='monthly' ? (days>0? +emp.rate : 0)
+             : days * +emp.rate;
   const adds = adjustments.filter(a=>a.empId===emp.id && a.period===period && a.kind==='add');
   const dedu = adjustments.filter(a=>a.empId===emp.id && a.period===period && a.kind==='deduct');
   const addSum = adds.reduce((a,x)=>a+ +x.amount,0);
@@ -806,7 +850,7 @@ function calcPay(emp, period){
   const advs   = advances.filter(a=>a.empId===emp.id && a.period===period);
   const advSum = advs.reduce((a,x)=>a+ +x.amount,0);
   const deduSum = dedu.reduce((a,x)=>a+ +x.amount,0) + missFine + lateAuto + singleFine + advSum;
-  return { days, lateCount, singleCount, singleDays, hours, missMin, lateMin, earlyMin, shortMin,
+  return { days, lateCount, singleCount, singleDays, hours, fullHrs, missMin, lateMin, earlyMin, shortMin,
            base, adds, dedu, addSum, deduSum, missFine, lateAuto, singleFine, advs, advSum,
            net: base + addSum - deduSum };
 }
@@ -816,7 +860,9 @@ function advQuota(emp, period){
   const r = periodRange(period);
   const upto = r.adv;                       // วันที่ 15 ของงวดนี้
   const ss = (shifts[emp.code]||[]).filter(s=>periodOf(s.day)===period && s.day <= upto);
-  const earned = emp.type==='monthly'
+  const earned = emp.mode==='hourly'
+    ? ss.reduce((a,s)=>a+(s.fullHours||0),0) * +emp.rate
+    : emp.type==='monthly'
     ? (ss.length ? +emp.rate * (ss.length / Math.max(1, empShiftsInPeriod(emp,period).length)) : 0)
     : ss.length * +emp.rate;
   const byRatio = Math.floor(earned * (settings.advRatio||0.5));
@@ -876,7 +922,9 @@ const avatar = (e, size) => e.photo
   ? `<img src="${e.photo}" style="width:${size}px;height:${size}px;border-radius:${Math.round(size/4)}px;object-fit:cover;background:#eee" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'ava',textContent:'${(e.nick||'?')[0]}',style:'width:${size}px;height:${size}px;border-radius:${Math.round(size/4)}px;background:linear-gradient(160deg,#ff922b,#e8590c);color:#fff;display:flex;align-items:center;justify-content:center;font-family:Prompt,sans-serif;font-size:${Math.round(size/2.4)}px;font-weight:600'}))">`
   : `<div style="width:${size}px;height:${size}px;border-radius:${Math.round(size/4)}px;background:linear-gradient(160deg,#ff922b,#e8590c);color:#fff;display:flex;align-items:center;justify-content:center;font-family:'Prompt',sans-serif;font-size:${Math.round(size/2.4)}px;font-weight:600">${(e.nick||'?')[0]}</div>`;
 
-const modeLabel = e => e.mode==='hours'
+const modeLabel = e => e.mode==='hourly'
+  ? `<span class="chip chip-green">รายชั่วโมง ${THB(e.rate)}/ชม.</span>`
+  : e.mode==='hours'
   ? `<span class="chip chip-violet">นับ ${e.target||10} ชม.</span>`
   : (e.shiftId ? `<span class="chip chip-blue">${(shiftDefs.find(s=>s.id===e.shiftId)||{}).name||'?'}</span>`
                : `<span class="chip chip-gray">🔍 อัตโนมัติ</span>`);
@@ -916,7 +964,7 @@ function renderEmp(){
         <td><span class="dept-chip">${e.dept||'–'}</span></td>
         <td>${e.position? '<span class="muted">'+e.position+'</span>' : '<span class="muted">–</span>'}</td>
         <td>${modeLabel(e)}</td>
-        <td class="num">${THB(e.rate)}${e.type==='monthly'?'/ด.':'/วัน'}</td>
+        <td class="num">${THB(e.rate)}${e.mode==='hourly'?'/ชม.':e.type==='monthly'?'/ด.':'/วัน'}</td>
         <td class="num">${days||'–'}</td>
         <td>${e.active?'<span class="chip chip-green">ทำงานอยู่</span>':'<span class="chip chip-red">พ้นสภาพ</span>'}</td>
         <td style="text-align:right">
@@ -930,6 +978,11 @@ function toggleModeFields(){
   const m = document.getElementById('fMode').value;
   document.getElementById('fShiftWrap').style.display = m==='shift'?'':'none';
   document.getElementById('fHoursWrap').style.display = m==='hours'?'':'none';
+  const t = document.getElementById('fType');
+  t.parentElement.style.display = m==='hourly'?'none':'';
+  document.getElementById('fRateLabel').textContent =
+    m==='hourly' ? 'อัตราค่าแรง (บาท / ชั่วโมง)' : 'อัตราค่าแรง (บาท)';
+  document.getElementById('fHourlyNote').style.display = m==='hourly'?'':'none';
 }
 function openEmpForm(id){
   const e = employees.find(x=>x.id===id);
@@ -966,7 +1019,7 @@ async function saveEmpForm(){
     branch: document.getElementById('fBranch').value,
     position: document.getElementById('fPos').value.trim(),
     photo: document.getElementById('fPhoto').value.trim(),
-    type: document.getElementById('fType').value,
+    type: document.getElementById('fMode').value==='hourly' ? 'hourly' : document.getElementById('fType').value,
     rate: +document.getElementById('fRate').value||0,
     mode: document.getElementById('fMode').value,
     shiftId: document.getElementById('fShift').value? +document.getElementById('fShift').value : null,
@@ -1020,7 +1073,7 @@ function renderDetail(){
   const p = calcPay(e, period);
   const ss = empShiftsInPeriod(e, period);
   const maxH = Math.max(8, ...ss.map(s=>s.hours||0));
-  const isH = e.mode==='hours';
+  const isH = e.mode==='hours', isHr = e.mode==='hourly';
   document.getElementById('detailContent').innerHTML = `
     <div class="card">
     <div style="display:flex;gap:14px;align-items:flex-start">
@@ -1042,8 +1095,10 @@ function renderDetail(){
 
     <div class="stats" style="margin-top:14px">
       <div class="stat"><div class="v">${p.days}</div><div class="l">วันทำงาน (${period?periodLabel(period):'–'})</div></div>
-      <div class="stat"><div class="v">${p.hours?p.hours.toFixed(1):'0'} ชม.</div><div class="l">ชั่วโมงรวม</div></div>
-      <div class="stat"><div class="v" style="color:${p.missMin?'var(--red)':'inherit'}">${p.missMin?minLabel(p.missMin):'–'}</div><div class="l">${isH?'ชั่วโมงที่ขาด':'สาย + ออกก่อน'}</div></div>
+      <div class="stat"><div class="v">${p.hours?p.hours.toFixed(1):'0'} ชม.</div><div class="l">ชั่วโมงรวม (จริง)</div></div>
+      ${isHr
+        ? `<div class="stat"><div class="v" style="color:var(--green)">${p.fullHrs} ชม.</div><div class="l">ชั่วโมงเต็มที่นับได้</div></div>`
+        : `<div class="stat"><div class="v" style="color:${p.missMin?'var(--red)':'inherit'}">${p.missMin?minLabel(p.missMin):'–'}</div><div class="l">${isH?'ชั่วโมงที่ขาด':'สาย + ออกก่อน'}</div></div>`}
       <div class="stat"><div class="v" style="color:var(--green)">${THB(p.net)} ฿</div><div class="l">คาดว่าจะได้รับสุทธิ</div></div>
     </div>
 
@@ -1051,7 +1106,7 @@ function renderDetail(){
       <div>
         <div class="section-title">การเข้างาน — ${period?periodLabel(period):''}</div>
         <div class="tbl-wrap" style="max-height:380px;overflow-y:auto">
-        <table><thead><tr><th>วันที่</th><th>กะ</th><th>เข้า</th><th>ออก</th><th class="num">ชม.</th><th class="num">ขาด</th></tr></thead><tbody>
+        <table><thead><tr><th>วันที่</th><th>กะ</th><th>เข้า</th><th>ออก</th><th class="num">ชม.</th><th class="num">${isHr?'นับได้':'ขาด'}</th></tr></thead><tbody>
         ${ss.length? ss.map(s=>{
           const wd = WD_TH[new Date(s.day+'T12:00:00').getDay()];
           return `<tr>
@@ -1060,7 +1115,8 @@ function renderDetail(){
             <td>${s.single && s.singleKind==='in' ? '<span class="chip chip-red">ลืมตอกเข้า</span>' : fmtT(s.in)+(s.lateMin?' <span class="chip chip-amber">สาย '+s.lateMin+'</span>':'')}</td>
             <td>${s.single ? (s.singleKind==='out' ? '<span class="chip chip-red">ลืมตอกออก</span>' : fmtT(s.in)) : fmtT(s.out)+(s.earlyMin?' <span class="chip chip-amber">ก่อน '+s.earlyMin+'</span>':'')}</td>
             <td class="num">${s.hours?s.hours.toFixed(1):'–'}</td>
-            <td class="num">${s.missMin?'<span style="color:var(--red)">'+s.missMin+' น.</span>':'–'}</td>
+            <td class="num">${isHr ? (s.fullHours? '<b style="color:var(--green)">'+s.fullHours+' ชม.</b>':'–')
+                                   : (s.missMin?'<span style="color:var(--red)">'+s.missMin+' น.</span>':'–')}</td>
           </tr>`;
         }).join('') : '<tr><td colspan="6"><div class="empty">ไม่มีข้อมูลในงวดนี้</div></td></tr>'}
         </tbody></table></div>
@@ -1068,7 +1124,7 @@ function renderDetail(){
       <div>
         <div class="section-title">เงินเดือนงวด ${period?periodLabel(period):''}</div>
         <div class="tbl-wrap"><table><tbody>
-          <tr><td>ค่าแรง ${e.type==='monthly'?'(เหมาเดือน)':'('+p.days+' วัน × '+THB(e.rate)+')'}</td><td class="num">${THB2(p.base)}</td></tr>
+          <tr><td>ค่าแรง ${isHr?'('+p.fullHrs+' ชม. × '+THB(e.rate)+')':e.type==='monthly'?'(เหมาเดือน)':'('+p.days+' วัน × '+THB(e.rate)+')'}</td><td class="num">${THB2(p.base)}</td></tr>
           ${p.adds.map(a=>`<tr><td style="color:var(--green)">＋ ${a.reason} <button class="btn btn-red btn-sm" style="padding:1px 7px" onclick="delAdj(${a.id})">✕</button></td><td class="num" style="color:var(--green)">${THB2(+a.amount)}</td></tr>`).join('')}
           ${p.missFine? `<tr><td style="color:var(--red)">－ หัก${isH?'ชั่วโมงไม่ครบ':'สาย/ออกก่อน'} (${p.missMin} น. × ${settings.minFine})</td><td class="num" style="color:var(--red)">-${THB2(p.missFine)}</td></tr>`:''}
           ${p.lateAuto? `<tr><td style="color:var(--red)">－ ปรับมาสาย (${p.lateCount} ครั้ง × ${THB(settings.lateFine)})</td><td class="num" style="color:var(--red)">-${THB2(p.lateAuto)}</td></tr>`:''}
@@ -1081,7 +1137,13 @@ function renderDetail(){
           <button class="btn btn-green btn-sm" onclick="openAdj(${e.id},'add','${period}')">＋ เพิ่มเงิน / OT / โบนัส</button>
           <button class="btn btn-red btn-sm" onclick="openAdj(${e.id},'deduct','${period}')">－ หักเงิน</button>
         </div>
-        ${!isH? `<div class="tbl-wrap" style="margin-top:12px"><table><tbody>
+        ${isHr? `<div class="tbl-wrap" style="margin-top:12px"><table><tbody>
+          <tr><td>กติกาการนับ</td><td class="num">${settings.hourRule==='floor'?'ปัดเศษนาทีทิ้ง':'นับช่วงชั่วโมงเต็มตามนาฬิกา'}</td></tr>
+          <tr><td>เวลาทำงานจริง</td><td class="num">${p.hours.toFixed(1)} ชม.</td></tr>
+          <tr><td>ชั่วโมงที่นับเงินได้</td><td class="num" style="color:var(--green);font-weight:700">${p.fullHrs} ชม.</td></tr>
+          <tr><td>เศษที่ไม่ถึงชั่วโมง</td><td class="num muted">${(p.hours-p.fullHrs).toFixed(1)} ชม.</td></tr>
+        </tbody></table></div>`
+        : !isH? `<div class="tbl-wrap" style="margin-top:12px"><table><tbody>
           <tr><td>รวมสาย</td><td class="num">${p.lateCount} ครั้ง / ${minLabel(p.lateMin)}</td></tr>
           <tr><td>รวมออกก่อนเลิกกะ</td><td class="num">${minLabel(p.earlyMin)}</td></tr>
         </tbody></table></div>`
@@ -1138,7 +1200,7 @@ function openSlip(empId, period){
   const p = calcPay(e, period);
   const r = periodRange(period);
   const ss = empShiftsInPeriod(e, period);
-  const isH = e.mode==='hours';
+  const isH = e.mode==='hours', isHr = e.mode==='hourly';
 
   const dedRows = [];
   if(p.missFine)   dedRows.push([isH?`ชั่วโมงไม่ครบ (${p.missMin} นาที × ${settings.minFine})`:`มาสาย/ออกก่อนเวลา (${p.missMin} นาที × ${settings.minFine})`, p.missFine]);
@@ -1171,16 +1233,16 @@ function openSlip(empId, period){
         <b>ตำแหน่ง</b><span>${e.position||'–'}</span>
       </div>
       <div class="kv" style="flex:1">
-        <b>ประเภท</b><span>${e.type==='monthly'?'รายเดือน':'รายวัน'} ${THB(e.rate)} บาท</span>
-        <b>รูปแบบงาน</b><span>${isH?'นับชั่วโมง (เป้า '+(e.target||10)+' ชม./วัน)':'เข้ากะ'}</span>
-        <b>วันทำงาน</b><span>${p.days} วัน · ${p.hours.toFixed(1)} ชม.</span>
+        <b>ประเภท</b><span>${isHr?'รายชั่วโมง':e.type==='monthly'?'รายเดือน':'รายวัน'} ${THB(e.rate)} บาท${isHr?'/ชม.':''}</span>
+        <b>รูปแบบงาน</b><span>${isHr?'จ่ายตามชั่วโมงเต็ม':isH?'นับชั่วโมง (เป้า '+(e.target||10)+' ชม./วัน)':'เข้ากะ'}</span>
+        <b>วันทำงาน</b><span>${p.days} วัน · ${p.hours.toFixed(1)} ชม.${isHr?' (นับได้ '+p.fullHrs+' ชม.)':''}</span>
         <b>ออกเอกสาร</b><span>${dayLabel(localYMD(new Date()))}</span>
       </div>
     </div>
 
     <div class="section-title" style="margin:14px 0 6px;font-size:13px">รายละเอียดการเข้างาน</div>
     <div class="tbl-wrap"><table>
-      <thead><tr><th>วันที่</th><th>กะ</th><th>เข้า</th><th>ออก</th><th class="num">ชม.</th><th>หมายเหตุ</th></tr></thead>
+      <thead><tr><th>วันที่</th><th>กะ</th><th>เข้า</th><th>ออก</th><th class="num">ชม.</th>${isHr?'<th class="num">นับได้</th>':''}<th>หมายเหตุ</th></tr></thead>
       <tbody>${ss.length? ss.map(s=>{
         const wd = WD_TH[new Date(s.day+'T12:00:00').getDay()];
         const notes = [];
@@ -1194,18 +1256,19 @@ function openSlip(empId, period){
           <td>${s.single && s.singleKind==='in' ? '–' : fmtT(s.in)}</td>
           <td>${s.single ? (s.singleKind==='out' ? '–' : fmtT(s.in)) : fmtT(s.out)}</td>
           <td class="num">${s.hours?s.hours.toFixed(1):'–'}</td>
+          ${isHr?`<td class="num"><b>${s.fullHours||0}</b></td>`:''}
           <td>${notes.join(' · ')||'-'}</td>
         </tr>`;}).join('')
-      : '<tr><td colspan="6" style="text-align:center;color:#6b625b;padding:14px">ไม่มีข้อมูลการเข้างานในรอบนี้</td></tr>'}
+      : `<tr><td colspan="${isHr?7:6}" style="text-align:center;color:#6b625b;padding:14px">ไม่มีข้อมูลการเข้างานในรอบนี้</td></tr>`}
       </tbody>
-      <tfoot><tr><td colspan="4">รวม ${p.days} วัน</td><td class="num">${p.hours.toFixed(1)}</td><td></td></tr></tfoot>
+      <tfoot><tr><td colspan="4">รวม ${p.days} วัน</td><td class="num">${p.hours.toFixed(1)}</td>${isHr?`<td class="num"><b>${p.fullHrs}</b></td>`:''}<td></td></tr></tfoot>
     </table></div>
 
     <div class="grid g2" style="margin-top:14px;align-items:start">
       <div>
         <div class="section-title" style="margin:0 0 6px;font-size:13px">รายรับ</div>
         <div class="tbl-wrap"><table><tbody>
-          <tr><td>ค่าแรง ${e.type==='monthly'?'(เหมาเดือน)':'('+p.days+' วัน × '+THB(e.rate)+')'}</td><td class="num">${THB2(p.base)}</td></tr>
+          <tr><td>ค่าแรง ${isHr?'('+p.fullHrs+' ชม.เต็ม × '+THB(e.rate)+')':e.type==='monthly'?'(เหมาเดือน)':'('+p.days+' วัน × '+THB(e.rate)+')'}</td><td class="num">${THB2(p.base)}</td></tr>
           ${p.adds.map(a=>`<tr><td>${a.reason}</td><td class="num">${THB2(+a.amount)}</td></tr>`).join('')}
           <tr style="font-weight:700"><td>รวมรายรับ</td><td class="num" style="color:var(--green)">${THB2(p.base+p.addSum)}</td></tr>
         </tbody></table></div>
@@ -1412,7 +1475,8 @@ function renderPayroll(){
     .sort((a,b)=> (a.e.branch||'').localeCompare(b.e.branch||'') || (a.e.dept||'').localeCompare(b.e.dept||'','th') || a.e.nick.localeCompare(b.e.nick,'th'));
   const tot = list.reduce((a,x)=>({base:a.base+x.p.base, add:a.add+x.p.addSum, ded:a.ded+x.p.deduSum,
     net:a.net+x.p.net, days:a.days+x.p.days, miss:a.miss+x.p.missMin,
-    single:a.single+x.p.singleCount, adv:a.adv+x.p.advSum}),{base:0,add:0,ded:0,net:0,days:0,miss:0,single:0,adv:0});
+    single:a.single+x.p.singleCount, adv:a.adv+x.p.advSum,
+    fullHrs:a.fullHrs+(x.e.mode==='hourly'?x.p.fullHrs:0)}),{base:0,add:0,ded:0,net:0,days:0,miss:0,single:0,adv:0,fullHrs:0});
   document.getElementById('payStats').innerHTML = `
     <div class="stat"><div class="v">${list.length}</div><div class="l">พนักงานในงวดนี้</div></div>
     <div class="stat"><div class="v">${tot.days.toLocaleString()}</div><div class="l">วันทำงานรวม</div></div>
@@ -1421,7 +1485,7 @@ function renderPayroll(){
     <div class="stat"><div class="v" style="color:var(--green)">${THB(tot.net)} ฿</div><div class="l">จ่ายสุทธิรวม</div></div>`;
   tbl.innerHTML = `<thead><tr>
       <th>พนักงาน</th><th>สาขา</th><th>แผนก</th><th class="num">วัน</th><th class="num">ชม.</th>
-      <th class="num">ขาด (น.)</th><th class="num">ลืมตอก</th><th class="num">เบิกแล้ว</th>
+      <th class="num">ชม.เต็ม</th><th class="num">ขาด (น.)</th><th class="num">ลืมตอก</th><th class="num">เบิกแล้ว</th>
       <th class="num">ค่าแรง</th><th class="num">เพิ่ม</th><th class="num">หัก</th><th class="num">สุทธิ</th><th></th>
     </tr></thead><tbody>` +
     list.map(({e,p})=>`<tr>
@@ -1430,6 +1494,7 @@ function renderPayroll(){
       <td><span class="dept-chip">${e.dept||'–'}</span></td>
       <td class="num">${p.days}</td>
       <td class="num">${p.hours?p.hours.toFixed(0):'–'}</td>
+      <td class="num">${e.mode==='hourly'? '<b style="color:var(--green)">'+p.fullHrs+'</b>':'–'}</td>
       <td class="num">${p.missMin? '<span class="chip chip-amber">'+p.missMin+'</span>':'–'}</td>
       <td class="num">${p.singleCount? '<span class="chip chip-red" title="'+p.singleDays.map(s=>dayLabel(s.day)+' '+singleLabel(s.singleKind)).join(', ')+'">'+p.singleCount+'</span>':'–'}</td>
       <td class="num">${p.advSum? '<span style="color:var(--red)">-'+THB(p.advSum)+'</span>':'–'}</td>
@@ -1439,7 +1504,7 @@ function renderPayroll(){
       <td class="num" style="font-weight:700">${THB(p.net)}</td>
       <td><button class="btn btn-light btn-sm" onclick="openSlip(${e.id},'${period}')">🧾 ใบสรุป</button></td>
     </tr>`).join('') +
-    `</tbody><tfoot><tr><td colspan="5">รวม ${list.length} คน</td><td class="num">${tot.miss}</td>
+    `</tbody><tfoot><tr><td colspan="5">รวม ${list.length} คน</td><td class="num">${tot.fullHrs||'–'}</td><td class="num">${tot.miss}</td>
       <td class="num">${tot.single||'–'}</td><td class="num">-${THB(tot.adv)}</td>
       <td class="num">${THB(tot.base)}</td><td class="num">+${THB(tot.add)}</td>
       <td class="num">-${THB(tot.ded)}</td><td class="num">${THB(tot.net)}</td><td></td></tr></tfoot>`;
@@ -1447,14 +1512,14 @@ function renderPayroll(){
 function exportPayrollXlsx(){
   const period = document.getElementById('periodSel').value;
   if(!period) return toast('❌ ยังไม่มีข้อมูล');
-  const rows = [['ชื่อเล่น','ชื่อ-นามสกุล','สาขา','แผนก','ตำแหน่ง','รูปแบบ','ประเภท','อัตรา','วันทำงาน','ชั่วโมง','สาย(ครั้ง)','สาย(นาที)','ออกก่อน(นาที)','ชม.ขาด(นาที)','ลืมตอก(ครั้ง)','ลืมตอก(วันที่)','เบิกกลางเดือน','ค่าแรง','เพิ่ม','หัก','สุทธิ']];
+  const rows = [['ชื่อเล่น','ชื่อ-นามสกุล','สาขา','แผนก','ตำแหน่ง','รูปแบบ','ประเภท','อัตรา','วันทำงาน','ชั่วโมง','สาย(ครั้ง)','สาย(นาที)','ออกก่อน(นาที)','ชม.ขาด(นาที)','ชม.เต็ม(รายชั่วโมง)','ลืมตอก(ครั้ง)','ลืมตอก(วันที่)','เบิกกลางเดือน','ค่าแรง','เพิ่ม','หัก','สุทธิ']];
   employees.filter(e=>e.active || empShiftsInPeriod(e,period).length).forEach(e=>{
     const p = calcPay(e,period);
-    const md = e.mode==='hours' ? 'นับ '+(e.target||10)+' ชม.' : (e.shiftId? (shiftDefs.find(s=>s.id===e.shiftId)||{}).name : 'กะอัตโนมัติ');
+    const md = e.mode==='hourly' ? 'รายชั่วโมง' : e.mode==='hours' ? 'นับ '+(e.target||10)+' ชม.' : (e.shiftId? (shiftDefs.find(s=>s.id===e.shiftId)||{}).name : 'กะอัตโนมัติ');
     rows.push([e.nick, e.full, (BR[e.branch]||{}).t||'', e.dept, e.position||'', md,
-      e.type==='monthly'?'รายเดือน':'รายวัน', +e.rate, p.days,
+      e.mode==='hourly'?'รายชั่วโมง':e.type==='monthly'?'รายเดือน':'รายวัน', +e.rate, p.days,
       +(p.hours.toFixed(1)), p.lateCount, p.lateMin, p.earlyMin, p.shortMin,
-      p.singleCount, p.singleDays.map(s=>dayLabel(s.day)+' '+singleLabel(s.singleKind)).join(', '),
+      e.mode==='hourly'?p.fullHrs:'', p.singleCount, p.singleDays.map(s=>dayLabel(s.day)+' '+singleLabel(s.singleKind)).join(', '),
       p.advSum, p.base, p.addSum, p.deduSum, p.net]);
   });
   const ws = XLSX.utils.aoa_to_sheet(rows);
@@ -1497,7 +1562,7 @@ async function saveJSON(){
 async function saveSetting(field, val){
   settings[{cutoff_hour:'cutoff', default_wage:'defaultWage', min_fine:'minFine', late_fine:'lateFine',
             single_fine:'singleFine', cut_day:'cutDay', pay_day:'payDay', adv_day:'advDay',
-            adv_max:'advMax', adv_ratio:'advRatio'}[field]] = val;
+            adv_max:'advMax', adv_ratio:'advRatio', hour_rule:'hourRule'}[field]] = val;
   const { error } = await db.from('payroll_settings').update({ [field]: val }).eq('id', 1);
   if(error) return dbErr(error,'บันทึกตั้งค่า');
   recomputeAll(); renderAll(); updPeriodHint(); toast('บันทึกแล้ว');
