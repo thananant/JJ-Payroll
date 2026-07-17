@@ -663,9 +663,15 @@ const toDbEmp = e => ({ code:e.code, nick:e.nick, full_name:e.full||'', dept:e.d
 const fromDbAdv = r => ({ id:r.id, empId:r.employee_id, period:r.period, amount:+r.amount,
   date:r.taken_date, note:r.note||'' });
 const fromDbShift = r => ({ id:r.id, name:r.name, start:String(r.start_time).slice(0,5),
-  end:String(r.end_time).slice(0,5), inGrace:r.in_grace, outGrace:r.out_grace, sort:r.sort_order });
+  end:String(r.end_time).slice(0,5), inGrace:r.in_grace, outGrace:r.out_grace, sort:r.sort_order,
+  deptOnly:(r.dept_only||'').trim() });
 const toDbShift = s => ({ name:s.name, start_time:s.start, end_time:s.end,
-  in_grace:s.inGrace, out_grace:s.outGrace, sort_order:s.sort||0 });
+  in_grace:s.inGrace, out_grace:s.outGrace, sort_order:s.sort||0, dept_only:s.deptOnly||'' });
+/* กะที่คนนี้ใช้ได้: กะจำกัดแผนก ใช้เฉพาะคนที่ชื่อแผนกมีคำนั้น (RD-ล้างจาน ก็เข้า) */
+const shiftsFor = emp => {
+  const list = shiftDefs.filter(sh => !sh.deptOnly || (emp && (emp.dept||'').includes(sh.deptOnly)));
+  return list.length ? list : shiftDefs;
+};
 const fromDbAdj = r => ({ id:r.id, empId:r.employee_id, kind:r.kind, reason:r.reason,
   amount:+r.amount, period:r.period });
 
@@ -918,13 +924,14 @@ function shiftWindow(day, sh){
   if(toMin(sh.end) <= toMin(sh.start)) e.setDate(e.getDate()+1);
   return {s,e};
 }
-function detectShift(day, ts){
+function detectShift(day, ts, emp){
   // ยึดเวลา "ออก" เป็นหลัก: ตอกครั้งสุดท้ายใกล้เวลาเลิกกะไหนสุด = กะนั้น
   // (เวลาออกแยกกะได้ชัดกว่าเวลาเข้า เช่น เข้า 17:30 เป็นได้ทั้งกะกลาง/เย็น แต่ออก 02:40 = เย็นแน่นอน)
   // ตอกครั้งเดียว: เทียบทั้งเวลาเริ่มและเลิก เอาที่ใกล้สุด (ลืมเข้าหรือลืมออกก็จับถูก)
   const lastP = ts[ts.length-1], firstP = ts[0];
-  let best=shiftDefs[0], bd=Infinity;
-  for(const sh of shiftDefs){
+  const cands = shiftsFor(arguments[2]);
+  let best=cands[0], bd=Infinity;
+  for(const sh of cands){
     const {s,e} = shiftWindow(day, sh);
     const d = ts.length>1 ? Math.abs(lastP - e)
                           : Math.min(Math.abs(firstP - s), Math.abs(firstP - e));
@@ -986,8 +993,8 @@ function recomputeAll(){
       if(!rec.single) rec.shortMin = Math.max(0, Math.round((emp.target||10)*60 - rec.hours*60));
       rec.missMin = rec.shortMin;
     } else {
-      const sh = (emp && emp.shiftId) ? (shiftDefs.find(x=>x.id===emp.shiftId) || detectShift(day, ts))
-                                      : detectShift(day, ts);
+      const sh = (emp && emp.shiftId) ? (shiftDefs.find(x=>x.id===emp.shiftId) || detectShift(day, ts, emp))
+                                      : detectShift(day, ts, emp);
       const {s,e} = shiftWindow(day, sh);
       rec.shiftName = sh.name;
       rec.in  = closestTo(ts, s);
@@ -1162,7 +1169,7 @@ function advQuota(emp, period){
 function renderShifts(){
   const t = document.getElementById('shiftTable');
   if(!shiftDefs.length){ t.innerHTML='<tr><td><div class="empty">ยังไม่มีกะ — กด ＋ เพิ่มกะ</div></td></tr>'; return; }
-  t.innerHTML = `<thead><tr><th>ชื่อกะ</th><th>เริ่ม</th><th>เลิก</th><th class="num">อนุโลมเข้า (น.)</th><th class="num">อนุโลมออก (น.)</th><th>ชม./กะ</th><th></th></tr></thead><tbody>`+
+  t.innerHTML = `<thead><tr><th>ชื่อกะ</th><th>เริ่ม</th><th>เลิก</th><th class="num">อนุโลมเข้า (น.)</th><th class="num">อนุโลมออก (น.)</th><th>เฉพาะแผนก</th><th>ชม./กะ</th><th></th></tr></thead><tbody>`+
   shiftDefs.map((sh,i)=>{
     let dur = toMin(sh.end)-toMin(sh.start); if(dur<=0) dur+=1440;
     return `<tr>
@@ -1171,6 +1178,7 @@ function renderShifts(){
       <td><input type="time" value="${sh.end}" onchange="updShift(${i},'end',this.value)"></td>
       <td class="num"><input type="number" value="${sh.inGrace}" style="max-width:80px" onchange="updShift(${i},'inGrace',+this.value)"></td>
       <td class="num"><input type="number" value="${sh.outGrace}" style="max-width:80px" onchange="updShift(${i},'outGrace',+this.value)"></td>
+      <td><input value="${sh.deptOnly||''}" placeholder="ทุกแผนก" style="max-width:120px" title="ใส่คำในชื่อแผนก เช่น ล้างจาน = ใช้กับแผนกล้างจานเท่านั้น" onchange="updShift(${i},'deptOnly',this.value.trim())"></td>
       <td><span class="chip chip-gray">${(dur/60).toFixed(1)} ชม.</span></td>
       <td style="text-align:right"><button class="btn btn-red btn-sm" onclick="delShift(${sh.id})">ลบ</button></td>
     </tr>`;
@@ -2014,7 +2022,7 @@ function renderToday(){
     if(!r.single) return r.lateMin;
     if(!e || e.mode !== 'shift' || !shiftDefs.length) return 0;
     let best=null, bd=Infinity;
-    for(const sh of shiftDefs){
+    for(const sh of shiftsFor(e)){
       const {s} = shiftWindow(day, sh);
       const d = Math.abs(r.in - s);
       if(d < bd){ bd=d; best={sh,s}; }
@@ -2023,7 +2031,7 @@ function renderToday(){
   };
 
   const branches = ['JJLP','JJRD','OFFICE'];
-  let html = '<div class="grid g3" style="align-items:start">';
+  let html = '<div style="display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(420px,1fr));align-items:start">';
   let tIn=0, tLate=0, tOff=0;
 
   for(const b of branches){
@@ -2057,18 +2065,38 @@ function renderToday(){
         <div class="stat" style="padding:10px"><div class="v" style="color:${late.length?'var(--amber)':'inherit'}">${late.length}</div><div class="l">สาย</div></div>
         <div class="stat" style="padding:10px"><div class="v" style="color:${noShow.length?'var(--red)':'inherit'}">${noShow.length}</div><div class="l">หยุด/ยังไม่มา</div></div>
       </div>
-      ${late.length? `<div style="font-size:12.5px;margin-bottom:8px"><b style="color:var(--amber)">⚠️ สาย:</b>
-        ${late.map(({e,r,lm})=>`<span class="chip chip-amber clickable" onclick="openDetail(${e.id})" title="เข้า ${fmtT(r.in)}">${e.nick} +${lm} น.</span>`).join(' ')}</div>`:''}
-      ${came.length? `<div style="font-size:12.5px;margin-bottom:8px"><b style="color:var(--green)">✓ เข้าแล้ว:</b>
-        ${came.map(({e,r})=>{
-          const oddSingle = r.single && !isToday;   // วันนี้สแกนครั้งเดียว = ยังทำงานอยู่ ไม่ใช่ลืมตอก
-          return `<span class="chip ${oddSingle?'chip-red':'chip-gray'} clickable" onclick="openDetail(${e.id})"
-          title="${r.shiftName} · เข้า ${fmtT(r.in)}${oddSingle?' · '+singleLabel(r.singleKind):(r.single?' · ยังไม่ออก':'')}${(r.workBranch&&e.branch&&r.workBranch!==e.branch)?' · ข้ามสาขาจาก'+((BR[e.branch]||{}).t||''):''}">${e.nick} ${fmtT(r.in)}</span>`;}).join(' ')}</div>`
-        : '<div class="muted" style="font-size:12.5px;margin-bottom:8px">ยังไม่มีใครสแกนเข้า</div>'}
-      ${noShow.length? `<div style="font-size:12.5px;margin-bottom:6px"><b style="color:var(--red)">✕ ยังไม่มา:</b>
-        ${noShow.map(e=>`<span class="chip chip-red clickable" onclick="openDetail(${e.id})">${e.nick}</span>`).join(' ')}</div>`:''}
-      ${offWd.length? `<div style="font-size:12.5px"><b class="muted">🛌 วันหยุดประจำ:</b>
-        ${offWd.map(e=>`<span class="chip chip-gray">${e.nick}</span>`).join(' ')}</div>`:''}
+      ${came.length? `<div class="tbl-wrap" style="margin-bottom:10px"><table style="font-size:12px">
+        <thead><tr><th style="width:52px">เข้า</th><th>ชื่อ</th><th>กะ</th><th>หมายเหตุ</th></tr></thead>
+        <tbody>${came.map(({e,r,lm})=>{
+          const oddSingle = r.single && !isToday;
+          const cross = r.workBranch && e.branch && r.workBranch!==e.branch;
+          const notes = [];
+          if(lm>0) notes.push('<span class="chip chip-amber">สาย +'+lm+' น.</span>');
+          if(oddSingle) notes.push('<span class="chip chip-red">'+singleLabel(r.singleKind)+'</span>');
+          else if(r.single && isToday) notes.push('<span class="muted">กำลังทำงาน</span>');
+          else if(!r.single) notes.push('<span class="muted">ออก '+fmtT(r.out)+'</span>');
+          if(cross) notes.push('<span class="chip chip-violet">มาจาก'+((BR[e.branch]||{}).t||'')+'</span>');
+          return `<tr${lm>0?' style="background:#fdf6e3"':''}>
+            <td><b>${fmtT(r.in)}</b></td>
+            <td class="clickable" onclick="openDetail(${e.id})"><b style="color:var(--ember-deep)">${e.nick}</b></td>
+            <td><span class="muted" style="font-size:11px">${r.shiftName.replace('กะเช้า (ล้างจาน)','เช้า·ล้างจาน').replace('กะ','')}</span></td>
+            <td>${notes.join(' ')}</td>
+          </tr>`;}).join('')}</tbody></table></div>`
+        : '<div class="muted" style="font-size:12.5px;margin-bottom:10px">ยังไม่มีใครสแกนเข้า</div>'}
+      ${noShow.length? `<div style="font-size:12px;margin-bottom:6px">
+        <b style="color:var(--red)">✕ หยุด/ยังไม่มา (${noShow.length}):</b>
+        <div style="margin-top:4px;display:grid;gap:3px">
+        ${(()=>{ const byD={};
+          noShow.forEach(e=>{ const d=e.dept||'ไม่ระบุแผนก'; (byD[d]=byD[d]||[]).push(e); });
+          return Object.keys(byD).sort((a,b)=>a.localeCompare(b,'th')).map(d=>
+            `<div style="display:flex;gap:6px;align-items:baseline">
+              <span class="dept-chip" style="flex-shrink:0">${d}</span>
+              <span>${byD[d].map(e=>`<span class="clickable" style="color:var(--red)" onclick="openDetail(${e.id})">${e.nick}</span>`).join('<span class="muted"> · </span>')}</span>
+            </div>`).join('');
+        })()}
+        </div></div>`:''}
+      ${offWd.length? `<div style="font-size:12px"><b class="muted">🛌 วันหยุดประจำ (${offWd.length}):</b>
+        <span class="muted">${offWd.map(e=>e.nick).join(' · ')}</span></div>`:''}
     </div>`;
   }
   html += '</div>';
