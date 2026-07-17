@@ -1848,7 +1848,7 @@ function renderAdv(){
   tbl.innerHTML = `<thead><tr>
     <th>พนักงาน</th><th>สาขา</th><th class="num">วัน (ถึง ${dayLabel(r.adv)})</th>
     <th class="num">ค่าแรงที่ทำมา</th><th class="num">${Math.round(settings.advRatio*100)}%</th>
-    <th class="num">เพดานเบิก</th><th class="num">เบิกแล้ว</th><th class="num">เบิกได้อีก</th><th></th>
+    <th class="num">เพดานเบิก</th><th class="num">เบิกแล้ว</th><th class="num" style="min-width:150px">บันทึกเบิก (พิมพ์ได้เลย)</th><th></th>
   </tr></thead><tbody>` +
   (list.length? list.map(({e,q})=>`<tr>
     <td class="clickable" onclick="openDetail(${e.id})"><b style="color:var(--ember-deep)">${e.nick}</b> <span class="muted">${e.full||''}</span></td>
@@ -1858,12 +1858,21 @@ function renderAdv(){
     <td class="num muted">${THB(q.byRatio)}</td>
     <td class="num"><b>${THB(q.cap)}</b>${q.cap===settings.advMax && q.byRatio>settings.advMax? ' <span class="chip chip-gray">เพดาน</span>':''}</td>
     <td class="num" style="color:${q.taken?'var(--red)':'inherit'}">${q.taken?THB(q.taken):'–'}</td>
-    <td class="num" style="color:${q.left?'var(--green)':'var(--ink-soft)'};font-weight:700">${THB(q.left)}</td>
+    <td class="num">
+      ${q.left>0
+        ? `<div style="display:flex;gap:5px;align-items:center;justify-content:flex-end">
+            <input type="number" id="advQ_${e.id}" placeholder="สูงสุด ${THB(q.left)}"
+              min="1" max="${q.left}" step="1"
+              style="max-width:110px;text-align:right;font-weight:600"
+              oninput="if(+this.value>${q.left}){this.value=${q.left};toast('⚠️ เพดานของ${e.nick} = ${THB(q.left)} บาท')}"
+              onkeydown="if(event.key==='Enter')quickAdv(${e.id},'${period}')">
+            <button class="btn btn-green btn-sm" title="บันทึก (หรือกด Enter)" onclick="quickAdv(${e.id},'${period}')">💾</button>
+          </div>`
+        : `<span class="chip chip-gray">เต็มสิทธิ์</span>`}
+    </td>
     <td><div class="act">
-      ${q.taken>0? `<button class="btn btn-light" title="แก้ไขรายการเบิก" onclick="openAdvForm(${e.id},'${period}')">✎</button>`:''}
-      ${q.left>0 ? `<button class="btn btn-green" title="บันทึกเบิก" onclick="openAdvForm(${e.id},'${period}')">＋</button>`
-                 : (q.taken>0? '' : '<span class="chip chip-gray">–</span>')}
-      ${q.left<=0 && q.taken>0? '<span class="chip chip-gray">เต็ม</span>':''}
+      ${q.taken>0? `<button class="btn btn-light" title="ดู/แก้รายการที่เบิกแล้ว" onclick="openAdvForm(${e.id},'${period}')">✎</button>`:''}
+      <button class="btn btn-light" title="เบิกแบบระบุวันที่/หมายเหตุเอง (กรณีพิเศษ)" onclick="openAdvForm(${e.id},'${period}')">＋</button>
     </div></td></tr>`).join('')
   : '<tr><td colspan="9"><div class="empty">ยังไม่มีใครมีวันทำงานในรอบนี้</div></td></tr>') + '</tbody>';
 }
@@ -1900,6 +1909,23 @@ function openAdvForm(empId, period){
   document.getElementById('advDate').value = periodRange(period).adv;
   document.getElementById('advNote').value = '';
   document.getElementById('advBg').classList.add('show');
+}
+async function quickAdv(empId, period){
+  const inp = document.getElementById('advQ_'+empId);
+  const amount = Math.floor(+inp.value);
+  const e = employees.find(x=>x.id===empId);
+  if(!amount || amount<=0) return toast('❌ ใส่จำนวนเงินก่อน');
+  const q = advQuota(e, period);
+  if(amount > q.left) return toast('❌ เกินสิทธิ์ — '+e.nick+' เบิกได้อีกแค่ '+THB(q.left)+' บาท');
+  const { data, error } = await db.from('advances').insert({
+    employee_id:empId, period, amount,
+    taken_date: localYMD(new Date()) <= periodRange(period).to ? localYMD(new Date()) : periodRange(period).adv,
+    note: ''
+  }).select().single();
+  if(error) return dbErr(error,'บันทึกการเบิก');
+  advances.push(fromDbAdv(data));
+  renderAdv(); renderPayroll(); renderDetail();
+  toast('✅ '+e.nick+' เบิก '+THB(amount)+' บาทแล้ว');
 }
 async function updateAdv(id){
   const a = advances.find(x=>x.id===id); if(!a) return;
