@@ -135,6 +135,9 @@ table.sticky-act tfoot td:last-child{background:#faf7f1}
 .cal .cnt small{font-size:11px;font-weight:400;color:var(--ink-soft)}
 .cal .heat{position:absolute;left:0;right:0;bottom:0;height:4px;border-radius:0 0 10px 10px;background:var(--ember);opacity:0}
 .cal .sh{font-size:11px;color:var(--ink-soft);margin-top:2px;line-height:1.45}
+/* หัวกลุ่มในตารางหน้าวันนี้ */
+tr.grp-shift td{background:#f0e7d8;font-family:'Prompt',sans-serif;font-weight:600;font-size:12.5px;color:#5a4a35;padding:6px 8px}
+tr.grp-dept td{background:#faf7f1;font-size:11.5px;font-weight:600;color:var(--ink-soft);padding:4px 8px 4px 16px}
 #loadOv{position:fixed;inset:0;background:rgba(244,241,236,.92);z-index:200;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:14px}
 #loadOv.hide{display:none}
 .spin{width:44px;height:44px;border:4px solid #e5ded5;border-top-color:var(--ember);border-radius:50%;animation:sp .8s linear infinite}
@@ -2133,9 +2136,9 @@ function renderToday(){
           ${outgoing.map(({e,wb})=>`<span class="clickable" onclick="openDetail(${e.id})">${e.nick} <span class="muted">(ไป${(BR[wb]||{}).t||wb})</span></span>`).join(' · ')}</div>`;
         return s;
       })()}
-      ${came.length? `<div class="tbl-wrap" style="margin-bottom:10px"><table style="font-size:12px">
-        <thead><tr><th style="width:52px">เข้า</th><th>ชื่อ</th><th>กะ</th><th>หมายเหตุ</th></tr></thead>
-        <tbody>${came.map(({e,r,lm})=>{
+      ${came.length? (()=>{
+        // จัดชั้น: กะ -> แผนก -> (เรียงตามตำแหน่ง) -> คน
+        const personRow = ({e,r,lm})=>{
           const oddSingle = r.single && !isToday;
           const cross = r.workBranch && e.branch && r.workBranch!==e.branch;
           const notes = [];
@@ -2147,9 +2150,39 @@ function renderToday(){
           return `<tr${lm>0?' style="background:#fdf6e3"':''}>
             <td><b>${fmtT(r.in)}</b></td>
             <td class="clickable" onclick="openDetail(${e.id})"><b style="color:var(--ember-deep)">${e.nick}</b></td>
-            <td><span class="muted" style="font-size:11px">${r.shiftName.replace('กะเช้า (ล้างจาน)','เช้า·ล้างจาน').replace('กะ','')}</span></td>
+            <td><span class="muted" style="font-size:11px">${e.position||'–'}</span></td>
             <td>${notes.join(' ')}</td>
-          </tr>`;}).join('')}</tbody></table></div>`
+          </tr>`;
+        };
+        // เรียงกะตามลำดับที่ตั้งไว้ กะอื่น (นับชม./รายชั่วโมง) ต่อท้าย
+        const shOrder = shiftDefs.map(s=>s.name);
+        const byShiftG = {};
+        came.forEach(x=>{ (byShiftG[x.r.shiftName]=byShiftG[x.r.shiftName]||[]).push(x); });
+        const keys = Object.keys(byShiftG).sort((a,c)=>{
+          const ia = shOrder.indexOf(a), ic = shOrder.indexOf(c);
+          return (ia<0?99:ia)-(ic<0?99:ic) || a.localeCompare(c,'th');
+        });
+        let rows = '';
+        for(const sn of keys){
+          const g = byShiftG[sn];
+          rows += `<tr class="grp-shift"><td colspan="4">🕐 ${sn} — ${g.length} คน</td></tr>`;
+          const byDept = {};
+          g.forEach(x=>{ const d=x.e.dept||'ไม่ระบุแผนก'; (byDept[d]=byDept[d]||[]).push(x); });
+          for(const d of Object.keys(byDept).sort((a,c)=>a.localeCompare(c,'th'))){
+            const dg = byDept[d];
+            // สรุปตำแหน่งในแผนก เช่น "หัวหน้ากะ 1 · พนักงาน 3"
+            const posCnt = {};
+            dg.forEach(x=>{ const p=x.e.position||'–'; posCnt[p]=(posCnt[p]||0)+1; });
+            const posLine = Object.entries(posCnt).map(([p,n])=>p+' '+n).join(' · ');
+            rows += `<tr class="grp-dept"><td colspan="4">${d} (${dg.length}) <span style="font-weight:400">— ${posLine}</span></td></tr>`;
+            dg.sort((a,c)=> (a.e.position||'ฮ').localeCompare(c.e.position||'ฮ','th') || a.r.in-c.r.in)
+              .forEach(x=>{ rows += personRow(x); });
+          }
+        }
+        return `<div class="tbl-wrap" style="margin-bottom:10px"><table style="font-size:12px">
+          <thead><tr><th style="width:52px">เข้า</th><th>ชื่อ</th><th>ตำแหน่ง</th><th>หมายเหตุ</th></tr></thead>
+          <tbody>${rows}</tbody></table></div>`;
+      })()
         : '<div class="muted" style="font-size:12.5px;margin-bottom:10px">ยังไม่มีใครสแกนเข้า</div>'}
       ${noShow.length? `<div style="font-size:12px;margin-bottom:6px">
         <b style="color:var(--red)">✕ หยุด/ยังไม่มา (${noShow.length}):</b>
