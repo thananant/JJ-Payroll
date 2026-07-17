@@ -475,9 +475,9 @@ table.sticky-act tfoot td:last-child{background:#faf7f1}
       <div><label>ชื่อ-นามสกุล</label><input id="fFull"></div>
       <div><label>รหัสพนักงาน (จากเครื่องสแกน)</label><input id="fCode"></div>
       <div><label>แผนก</label><input id="fDept" list="deptList"><datalist id="deptList"></datalist></div>
-      <div><label>สาขา</label>
+      <div><label>สาขาสังกัด (fix — ระบบจะจำสาขานี้ถาวร)</label>
         <select id="fBranch">
-          <option value="">– ตามแผนก –</option>
+          <option value="">– อัตโนมัติตามแผนก –</option>
           <option value="JJLP">ลาดพร้าว (JJLP)</option>
           <option value="JJRD">รัชดา (JJRD)</option>
           <option value="OFFICE">ส่วนกลาง / ออฟฟิศ</option>
@@ -1599,9 +1599,10 @@ function renderDetail(){
           ${p.wkOffWorked.length? `<tr><td>หยุดประจำ</td><td class="num">${e.offWd.split(',').map(i=>WD_TH[+i]).join(', ')}</td></tr>
           <tr><td>มาทำงานวันหยุดประจำ</td><td class="num" style="color:var(--amber)">${p.wkOffWorked.length} วัน</td></tr>`:''}
         </tbody></table></div>`:''}
-        ${Object.keys(p.byBranch).length>1? `<div class="warn-note" style="margin-top:12px;margin-bottom:0">
-          🔀 <b>ทำงานข้ามสาขา ${p.crossDays.length} วัน</b><br>
-          ${Object.entries(p.byBranch).map(([b,n])=>((BR[b]||{}).t||b)+' '+n+' วัน').join(' · ')}
+        ${p.crossDays.length? `<div class="warn-note" style="margin-top:12px;margin-bottom:0">
+          🔀 <b>ไปทำงานต่างสาขา ${p.crossDays.length} วัน</b> (สังกัด${(BR[e.branch]||{}).t||'–'})<br>
+          ${p.crossDays.map(s=>`${dayLabel(s.day)} → <b style="color:#6741d9">${(BR[s.workBranch]||{}).t||s.workBranch}</b>`).join(' · ')}<br>
+          <span class="small">รวมทั้งงวด: ${Object.entries(p.byBranch).map(([b,n])=>((BR[b]||{}).t||b)+' '+n+' วัน').join(' · ')}</span>
         </div>`:''}
         ${p.singleCount? `<div class="warn-note" style="margin-top:12px;margin-bottom:0">
           ⚠️ <b>ลืมตอกบัตร ${p.singleCount} วัน</b> — ปรับ ${THB(p.singleFine)} บาท<br>
@@ -2107,6 +2108,25 @@ function renderToday(){
         <div class="stat" style="padding:10px"><div class="v" style="color:${late.length?'var(--amber)':'inherit'}">${late.length}</div><div class="l">สาย</div></div>
         <div class="stat" style="padding:10px"><div class="v" style="color:${noShow.length?'var(--red)':'inherit'}">${noShow.length}</div><div class="l">หยุด/ยังไม่มา</div></div>
       </div>
+      ${(()=>{
+        // คนจากสาขาอื่นที่มาสแกนที่นี่วันนี้
+        const incoming = came.filter(({e,r})=>r.workBranch && e.branch && r.workBranch!==e.branch);
+        // คนสังกัดสาขานี้ที่ไปสแกนที่สาขาอื่นวันนี้
+        const outgoing = [];
+        for(const c in recOf){
+          const e2 = employees.find(x=>x.code===c); if(!e2 || e2.branch!==b) continue;
+          const wb = recOf[c].workBranch || e2.branch;
+          if(wb !== b) outgoing.push({e:e2, wb});
+        }
+        let s = '';
+        if(incoming.length) s += `<div style="font-size:12px;margin-bottom:6px;background:#f3f0fb;border:1px solid #d9d0f2;border-radius:8px;padding:6px 10px">
+          🔀 <b style="color:#6741d9">มาจากสาขาอื่น ${incoming.length} คน:</b>
+          ${incoming.map(({e,r})=>`<span class="clickable" onclick="openDetail(${e.id})"><b>${e.nick}</b> <span class="muted">(จาก${(BR[e.branch]||{}).t||'?'} · เข้า ${fmtT(r.in)})</span></span>`).join(' · ')}</div>`;
+        if(outgoing.length) s += `<div style="font-size:12px;margin-bottom:6px;background:#faf7f1;border:1px solid var(--line);border-radius:8px;padding:6px 10px">
+          ➡️ <b class="muted">ไปช่วยสาขาอื่น ${outgoing.length} คน:</b>
+          ${outgoing.map(({e,wb})=>`<span class="clickable" onclick="openDetail(${e.id})">${e.nick} <span class="muted">(ไป${(BR[wb]||{}).t||wb})</span></span>`).join(' · ')}</div>`;
+        return s;
+      })()}
       ${came.length? `<div class="tbl-wrap" style="margin-bottom:10px"><table style="font-size:12px">
         <thead><tr><th style="width:52px">เข้า</th><th>ชื่อ</th><th>กะ</th><th>หมายเหตุ</th></tr></thead>
         <tbody>${came.map(({e,r,lm})=>{
