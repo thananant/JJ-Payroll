@@ -53,6 +53,8 @@ aside nav button:hover{color:#e8ddd0}
 .btn-sm{padding:4px 10px;font-size:13px;border-radius:7px}
 
 main{max-width:1240px;margin:0 auto;padding:22px}
+main:has(#page-cal.active){max-width:none}   /* หน้าปฏิทินใช้เต็มความกว้างจอ */
+main:has(#page-today.active){max-width:none} /* หน้าวันนี้ด้วย ข้อมูลเยอะ */
 .page{display:none}.page.active{display:block}
 
 .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:20px;margin-bottom:18px}
@@ -121,9 +123,9 @@ table.sticky-act tfoot td:last-child{background:#faf7f1}
 .act{display:inline-flex;gap:4px}
 .act .btn{padding:4px 8px;font-size:13px;border-radius:7px;line-height:1.2}
 /* ===== calendar ===== */
-.cal{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;min-width:640px}
+.cal{display:grid;grid-template-columns:repeat(7,1fr);gap:8px;min-width:900px}
 .cal .wd{font-family:'Prompt',sans-serif;font-size:12.5px;color:var(--ink-soft);text-align:center;padding:4px 0}
-.cal .cell{background:#fff;border:1px solid var(--line);border-radius:10px;min-height:78px;padding:7px 8px;cursor:pointer;position:relative;transition:.12s}
+.cal .cell{background:#fff;border:1px solid var(--line);border-radius:10px;min-height:92px;padding:8px 10px;cursor:pointer;position:relative;transition:.12s}
 .cal .cell:hover{border-color:var(--ember);box-shadow:0 2px 8px rgba(232,89,12,.12)}
 .cal .cell.empty{background:transparent;border:none;cursor:default;box-shadow:none}
 .cal .cell.sel{border-color:var(--ember);outline:2px solid rgba(232,89,12,.25)}
@@ -132,7 +134,7 @@ table.sticky-act tfoot td:last-child{background:#faf7f1}
 .cal .cnt{font-family:'Prompt',sans-serif;font-size:19px;font-weight:600;display:block;margin-top:2px}
 .cal .cnt small{font-size:11px;font-weight:400;color:var(--ink-soft)}
 .cal .heat{position:absolute;left:0;right:0;bottom:0;height:4px;border-radius:0 0 10px 10px;background:var(--ember);opacity:0}
-.cal .sh{font-size:10.5px;color:var(--ink-soft);margin-top:1px;white-space:nowrap;overflow:hidden}
+.cal .sh{font-size:11px;color:var(--ink-soft);margin-top:2px;line-height:1.45}
 #loadOv{position:fixed;inset:0;background:rgba(244,241,236,.92);z-index:200;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:14px}
 #loadOv.hide{display:none}
 .spin{width:44px;height:44px;border:4px solid #e5ded5;border-top-color:var(--ember);border-radius:50%;animation:sp .8s linear infinite}
@@ -541,8 +543,13 @@ table.sticky-act tfoot td:last-child{background:#faf7f1}
     </div>
 
     <div class="warn-note" id="fHourlyNote" style="display:none;margin-top:12px;margin-bottom:0">
-      💡 <b>รายชั่วโมง:</b> จ่ายตาม<b>ชั่วโมงเต็ม</b>ที่ทำได้ × อัตรา/ชม. — ไม่คิดสาย ไม่คิดออกก่อน
-      (มาช้าก็ได้ชั่วโมงน้อยลงเอง) กติกาการนับเศษนาทีตั้งได้ที่หน้า ⚙️ ตั้งค่า
+      💡 <b>รายชั่วโมง:</b> จ่ายตาม<b>ชั่วโมงเต็ม</b>ที่ทำได้ × อัตรา/ชม. — ไม่คิดสาย ไม่คิดออกก่อน<br>
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:400;margin-top:8px">
+        <select id="fHourlyWindow" style="max-width:100%">
+          <option value="1">พาร์ทไทม์ช่วงเย็น — นับเฉพาะ 18:00–00:00 ไม่เกิน 6 ชม.</option>
+          <option value="0">นับตามเวลาทำงานจริงทั้งหมด (ชั่วโมงเต็มเท่านั้น)</option>
+        </select>
+      </label>
     </div>
     <div style="display:flex;gap:10px;margin-top:20px;justify-content:flex-end">
       <button class="btn btn-light" onclick="closeModal('formBg')">ยกเลิก</button>
@@ -653,11 +660,13 @@ let adjustments = [];
 const fromDbEmp = r => ({ id:r.id, code:r.code, nick:r.nick, full:r.full_name||'', dept:r.dept||'',
   branch:r.branch||'', position:r.position||'', photo:r.photo_url||'',
   offCount:+(r.off_count||0), offWd:r.off_weekdays||'', holidayPay:r.holiday_pay!==false,
+  hourlyWindow:r.hourly_window!==false,
   type:r.wage_type||'daily', rate:+r.rate, mode:r.work_mode||'shift', shiftId:r.shift_id,
   target:+(r.target_hours||10), active:!!r.active });
 const toDbEmp = e => ({ code:e.code, nick:e.nick, full_name:e.full||'', dept:e.dept||'',
   branch:e.branch||'', position:e.position||'', photo_url:e.photo||null,
   off_count:e.offCount||0, off_weekdays:e.offWd||'', holiday_pay:!!e.holidayPay,
+  hourly_window:e.hourlyWindow!==false,
   wage_type:e.type, rate:e.rate, work_mode:e.mode, shift_id:e.shiftId,
   target_hours:e.target, active:!!e.active });
 const fromDbAdv = r => ({ id:r.id, empId:r.employee_id, period:r.period, amount:+r.amount,
@@ -791,6 +800,7 @@ function go(p){
   document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));
   document.getElementById('page-'+p).classList.add('active');
   document.querySelectorAll('aside nav button').forEach(b=>b.classList.toggle('active',b.dataset.page===p));
+  document.querySelector('main').style.maxWidth = (p==='cal'||p==='today') ? 'none' : '';
   if(p==='emp')renderEmp(); if(p==='payroll')renderPayroll(); if(p==='cal')renderCalendar(); if(p==='adv')renderAdv(); if(p==='holi')renderHoli();
   if(p==='detail'){renderDetailSelector();renderDetail();} if(p==='shift')renderShifts(); if(p==='today')renderToday();
   window.scrollTo(0,0);
@@ -972,6 +982,10 @@ function recomputeAll(){
       /* นับเงินเฉพาะช่วงเวลางานพาร์ทไทม์ (ค่าเริ่มต้น 18:00–00:00)
          เข้าก่อน/ออกหลังช่วงได้ แต่ชั่วโมงนอกช่วงไม่นับ และไม่เกินเพดาน (6 ชม.) */
       if(rec.single){ rec.fullHours = 0; }
+      else if(emp.hourlyWindow === false){
+        // นับตามเวลาทำงานจริงทั้งหมด (ชั่วโมงเต็มเท่านั้น) ไม่จำกัดช่วง ไม่มีเพดาน
+        rec.fullHours = fullHours(rec.in, rec.out);
+      }
       else {
         const ws = new Date(day+'T'+(settings.hourlyStart||'18:00')+':00');
         const we = new Date(day+'T'+(settings.hourlyEnd||'00:00')+':00');
@@ -1367,6 +1381,7 @@ function openEmpForm(id){
   document.getElementById('fOffType').value = ot;
   document.getElementById('fOffCount').value = e? (e.offCount||4) : 4;
   document.getElementById('fHoliPay').checked = e? e.holidayPay !== false : true;
+  document.getElementById('fHourlyWindow').value = (e && e.hourlyWindow === false) ? '0' : '1';
   toggleModeFields(); toggleOffFields();
   document.getElementById('formBg').classList.add('show');
 }
@@ -1410,6 +1425,7 @@ async function saveEmpForm(){
     : '';
   data.offCount = ot==='count' ? (+document.getElementById('fOffCount').value||0) : 0;
   data.holidayPay = document.getElementById('fHoliPay').checked;
+  data.hourlyWindow = document.getElementById('fHourlyWindow').value !== '0';
   if(ot==='weekly' && !data.offWd) return toast('❌ เลือกวันหยุดประจำสัปดาห์อย่างน้อย 1 วัน');
   busy(true,'กำลังบันทึก…');
   try{
@@ -1558,7 +1574,7 @@ function renderDetail(){
           <button class="btn btn-red btn-sm" onclick="openAdj(${e.id},'deduct','${period}')">－ หักเงิน</button>
         </div>
         ${isHr? `<div class="tbl-wrap" style="margin-top:12px"><table><tbody>
-          <tr><td>กติกาการนับ</td><td class="num">${settings.hourRule==='floor'?'ปัดเศษนาทีทิ้ง':'นับช่วงชั่วโมงเต็มตามนาฬิกา'}</td></tr>
+          <tr><td>กติกาการนับ</td><td class="num">${settings.hourRule==='floor'?'ปัดเศษนาทีทิ้ง':'นับช่วงชั่วโมงเต็มตามนาฬิกา'}${e.hourlyWindow===false?' · ทุกช่วงเวลา':' · เฉพาะ '+settings.hourlyStart+'–'+settings.hourlyEnd}</td></tr>
           <tr><td>เวลาทำงานจริง</td><td class="num">${p.hours.toFixed(1)} ชม.</td></tr>
           <tr><td>ชั่วโมงที่นับเงินได้</td><td class="num" style="color:var(--green);font-weight:700">${p.fullHrs} ชม.</td></tr>
           <tr><td>เศษที่ไม่ถึงชั่วโมง</td><td class="num muted">${(p.hours-p.fullHrs).toFixed(1)} ชม.</td></tr>
