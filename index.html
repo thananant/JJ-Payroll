@@ -978,6 +978,8 @@ function recomputeAll(){
     const snCnt = {};
     ts.forEach(t=>{ const b = devBranch[t._sn]; if(b) snCnt[b] = (snCnt[b]||0)+1; });
     rec.workBranch = Object.keys(snCnt).sort((a,b)=>snCnt[b]-snCnt[a])[0] || '';
+    // ออฟฟิศใช้เครื่องสแกนร่วมกับลาดพร้าว -> คนสังกัดออฟฟิศสแกนที่เครื่องลาดพร้าว = ทำงานออฟฟิศปกติ ไม่ใช่ข้ามสาขา
+    if(emp && emp.branch === 'OFFICE' && rec.workBranch === 'JJLP') rec.workBranch = 'OFFICE';
 
     if(emp && emp.mode==='hourly'){
       rec.in = ts[0]; rec.out = ts[ts.length-1];
