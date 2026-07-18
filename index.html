@@ -452,6 +452,17 @@ tr.grp-dept td{background:#faf7f1;font-size:11.5px;font-weight:600;color:var(--i
         <tr><td><b>19:30 → 23:30</b></td><td class="num"><b>3 ชม.</b></td><td class="num"><b>4 ชม.</b></td></tr>
       </tbody></table></div>
     <p class="muted" style="margin-top:6px">แถวสุดท้ายคือจุดที่ 2 แบบต่างกัน — <b>นับตามนาฬิกา</b> ต้องอยู่ครบตั้งแต่ต้นชั่วโมงถึงท้ายชั่วโมงถึงจะนับ</p>
+    <div class="section-title">โครงสร้างแผนก / ตำแหน่ง</div>
+    <p class="muted" style="margin-bottom:10px">ตัวเลือกในฟอร์มพนักงาน — เลือกแผนกแล้วตำแหน่งจะกรองตามแผนกนั้น · เพิ่มแผนกใหม่ = พิมพ์ชื่อแผนกใหม่พร้อมตำแหน่งแรก</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+      <input id="orgDeptInp" list="orgDeptDl" placeholder="แผนก เช่น Kitchen" style="max-width:200px">
+      <datalist id="orgDeptDl"></datalist>
+      <input id="orgPosInp" placeholder="ตำแหน่ง เช่น ล้างจาน" style="max-width:200px"
+        onkeydown="if(event.key==='Enter')addOrgPos()">
+      <button class="btn btn-ember" onclick="addOrgPos()">＋ เพิ่ม</button>
+    </div>
+    <div id="orgList"></div>
+
     <div class="section-title">นำเข้าไฟล์การเข้างาน (.xlsx) — ช่องทางสำรอง</div>
     <p class="muted" style="margin-bottom:10px">ปกติข้อมูลเข้าจากเครื่องสแกนอัตโนมัติแล้ว — ใช้ตรงนี้เฉพาะดึงข้อมูลย้อนหลัง หรือช่วงเครื่อง/เน็ตมีปัญหา (นำเข้าซ้ำได้ ระบบกันข้อมูลเบิ้ล และจะอัปเดตแผนก/ชื่อของคนเดิมให้ด้วย)</p>
     <div class="drop" id="drop" onclick="document.getElementById('xlsxFile').click()">
@@ -481,7 +492,6 @@ tr.grp-dept td{background:#faf7f1;font-size:11.5px;font-weight:600;color:var(--i
       <div><label>ชื่อเล่น *</label><input id="fNick"></div>
       <div><label>ชื่อ-นามสกุล</label><input id="fFull"></div>
       <div><label>รหัสพนักงาน (จากเครื่องสแกน)</label><input id="fCode"></div>
-      <div><label>แผนก</label><input id="fDept" list="deptList"><datalist id="deptList"></datalist></div>
       <div><label>สาขาสังกัด (fix — ระบบจะจำสาขานี้ถาวร)</label>
         <select id="fBranch">
           <option value="">– อัตโนมัติตามแผนก –</option>
@@ -489,7 +499,11 @@ tr.grp-dept td{background:#faf7f1;font-size:11.5px;font-weight:600;color:var(--i
           <option value="JJRD">รัชดา (JJRD)</option>
           <option value="OFFICE">ส่วนกลาง / ออฟฟิศ</option>
         </select></div>
-      <div><label>ตำแหน่ง</label><input id="fPos" list="posList" placeholder="เช่น พนักงานเสิร์ฟ / หัวหน้ากะ"><datalist id="posList"></datalist></div>
+      <div><label>แผนก</label>
+        <select id="fDept" onchange="fillFormPos()"></select></div>
+      <div><label>ตำแหน่ง <span class="muted" style="font-weight:400">(ตามแผนกที่เลือก)</span></label>
+        <select id="fPos"></select></div>
+      <datalist id="deptList"></datalist><datalist id="posList"></datalist>
       <div><label>รูปพนักงาน (ใส่หรือไม่ก็ได้)</label>
         <div style="display:flex;gap:10px;align-items:center">
           <div id="fPhotoPreview"></div>
@@ -657,6 +671,10 @@ let settings = { cutoff:6, defaultWage:400, minFine:0, lateFine:0, loadMonths:8,
 let advances = [];
 let holidays = {};   // 'YYYY-MM-DD' -> {name, mult}
 let devBranch = {};  // device_sn -> branch
+let orgPos = [];     // โครงสร้าง {id, dept, name} จากตาราง org_positions
+const orgDepts = () => [...new Set(orgPos.map(o=>o.dept))].sort((a,b)=>a.localeCompare(b,'th'));
+const orgPositions = d => orgPos.filter(o=>!d || o.dept===d)
+  .sort((a,b)=>(a.sort||0)-(b.sort||0) || a.name.localeCompare(b.name,'th')).map(o=>o.name);
 let shiftDefs = [];
 let employees = [];   // {id,code,nick,full,dept,type,rate,mode,shiftId,target,active}
 let punches = [];     // {code,date,time}
@@ -714,6 +732,8 @@ async function loadAll(){
     ]);
     for(const r of [sh,em,st,ad,av,hd,dv]) if(r.error) throw r.error;
     holidays = {}; (hd.data||[]).forEach(h=>holidays[h.day] = { name:h.name||'วันหยุดพิเศษ', mult:+h.multiplier, id:h.id });
+    try{ const og = await db.from('org_positions').select('*').order('dept').order('sort');
+         if(!og.error) orgPos = og.data||[]; }catch(_){ /* ยังไม่รัน phase14 ก็ใช้งานส่วนอื่นได้ */ }
     devBranch = {}; (dv.data||[]).forEach(d=>{ if(d.branch) devBranch[d.sn] = d.branch; });
 
     shiftDefs = (sh.data||[]).map(fromDbShift);
@@ -809,7 +829,7 @@ function go(p){
   document.querySelectorAll('aside nav button').forEach(b=>b.classList.toggle('active',b.dataset.page===p));
   document.querySelector('main').style.maxWidth = (p==='cal'||p==='today') ? 'none' : '';
   if(p==='emp')renderEmp(); if(p==='payroll')renderPayroll(); if(p==='cal')renderCalendar(); if(p==='adv')renderAdv(); if(p==='holi')renderHoli();
-  if(p==='detail'){renderDetailSelector();renderDetail();} if(p==='shift')renderShifts(); if(p==='today')renderToday();
+  if(p==='detail'){renderDetailSelector();renderDetail();} if(p==='shift')renderShifts(); if(p==='today')renderToday(); if(p==='settings')renderOrg();
   window.scrollTo(0,0);
 }
 function closeModal(id){ document.getElementById(id).classList.remove('show'); }
@@ -1320,6 +1340,15 @@ function renderEmp(){
         </div></td></tr>`;
     }).join('') + '</tbody>';
 }
+function fillFormPos(keep){
+  const sel = document.getElementById('fPos');
+  const cur = keep !== undefined ? keep : sel.value;
+  const dept = document.getElementById('fDept').value;
+  const pos = orgPositions(dept);
+  if(cur && !pos.includes(cur)) pos.unshift(cur);
+  sel.innerHTML = '<option value="">– เลือกตำแหน่ง –</option>' +
+    pos.map(p=>`<option ${p===cur?'selected':''}>${p}</option>`).join('');
+}
 let empPhotoFile = null, empPhotoRemoved = false;
 function previewEmpPhoto(inp){
   const f = inp.files && inp.files[0];
@@ -1362,17 +1391,20 @@ function openEmpForm(id){
   document.getElementById('fNick').value = e? e.nick : '';
   document.getElementById('fFull').value = e? e.full : '';
   document.getElementById('fCode').value = e? e.code : '';
-  document.getElementById('fDept').value = e? e.dept : '';
   document.getElementById('fBranch').value = e? (e.branch||'') : '';
-  document.getElementById('fPos').value = e? (e.position||'') : '';
+  const curDept = e? (e.dept||'') : '';
+  const depts = orgDepts();
+  if(curDept && !depts.includes(curDept)) depts.unshift(curDept);
+  document.getElementById('fDept').innerHTML =
+    '<option value="">– เลือกแผนก –</option>' +
+    depts.map(d=>`<option ${d===curDept?'selected':''}>${d}</option>`).join('');
+  fillFormPos(e? (e.position||'') : '');
   document.getElementById('fPhoto').value = e? (e.photo||'') : '';
   empPhotoFile = null; empPhotoRemoved = false;
   document.getElementById('fPhotoFile').value = '';
   document.getElementById('fPhotoPreview').innerHTML = (e && e.photo)
     ? `<img src="${e.photo}" style="width:56px;height:56px;border-radius:14px;object-fit:cover">` : '';
   document.getElementById('fPhotoClear').style.display = (e && e.photo) ? '' : 'none';
-  document.getElementById('posList').innerHTML =
-    [...new Set(employees.map(x=>x.position).filter(Boolean))].sort().map(p=>`<option>${p}</option>`).join('');
   document.getElementById('fType').value = e? e.type : 'daily';
   document.getElementById('fRate').value = e? e.rate : settings.defaultWage;
   document.getElementById('fMode').value = e? (e.mode||'shift') : 'shift';
@@ -2053,6 +2085,60 @@ function openAdvSheet(){
   document.getElementById('slipBg').classList.add('show');
 }
 
+/* ================= ORG STRUCTURE (settings) ================= */
+function renderOrg(){
+  const el = document.getElementById('orgList'); if(!el) return;
+  document.getElementById('orgDeptDl').innerHTML = orgDepts().map(d=>`<option>${d}</option>`).join('');
+  if(!orgPos.length){
+    el.innerHTML = '<div class="empty">ยังไม่มีข้อมูล — รัน payroll_phase14.sql เพื่อติดตั้งโครงสร้างเริ่มต้น หรือเพิ่มเองด้านบน</div>';
+    return;
+  }
+  el.innerHTML = orgDepts().map(d=>{
+    const list = orgPos.filter(o=>o.dept===d)
+      .sort((a,b)=>(a.sort||0)-(b.sort||0) || a.name.localeCompare(b.name,'th'));
+    return `<div style="border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:8px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+        <b style="font-family:'Prompt',sans-serif">${d}</b>
+        <span class="muted" style="font-size:12px">${list.length} ตำแหน่ง</span>
+        <span style="flex:1"></span>
+        <button class="btn btn-red btn-sm" title="ลบทั้งแผนก" onclick="delOrgDept('${d.replace(/'/g,"\\'")}')">🗑 ลบแผนก</button>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        ${list.map(o=>`<span class="chip chip-gray" style="gap:6px;display:inline-flex;align-items:center">${o.name}
+          <span class="clickable" style="color:var(--red);font-weight:700" title="ลบตำแหน่งนี้" onclick="delOrgPos(${o.id})">✕</span></span>`).join('')}
+      </div>
+    </div>`;
+  }).join('');
+}
+async function addOrgPos(){
+  const dept = document.getElementById('orgDeptInp').value.trim();
+  const name = document.getElementById('orgPosInp').value.trim();
+  if(!dept || !name) return toast('❌ ใส่ทั้งแผนกและตำแหน่ง');
+  if(orgPos.find(o=>o.dept===dept && o.name===name)) return toast('❌ มีตำแหน่งนี้ในแผนกนี้อยู่แล้ว');
+  const sort = Math.max(0, ...orgPos.filter(o=>o.dept===dept).map(o=>o.sort||0)) + 1;
+  const { data, error } = await db.from('org_positions').insert({ dept, name, sort }).select().single();
+  if(error) return dbErr(error, 'เพิ่มตำแหน่ง (ต้องรัน payroll_phase14.sql ก่อน)');
+  orgPos.push(data);
+  document.getElementById('orgPosInp').value = '';
+  renderOrg(); toast('เพิ่ม '+dept+' → '+name+' แล้ว');
+}
+async function delOrgPos(id){
+  const o = orgPos.find(x=>x.id===id); if(!o) return;
+  if(!confirm('ลบตำแหน่ง "'+o.name+'" ออกจากแผนก '+o.dept+' ?\n(พนักงานที่ใช้ตำแหน่งนี้อยู่ไม่ได้รับผลกระทบ)')) return;
+  const { error } = await db.from('org_positions').delete().eq('id', id);
+  if(error) return dbErr(error,'ลบตำแหน่ง');
+  orgPos = orgPos.filter(x=>x.id!==id);
+  renderOrg(); toast('ลบแล้ว');
+}
+async function delOrgDept(dept){
+  const n = orgPos.filter(o=>o.dept===dept).length;
+  if(!confirm('ลบแผนก "'+dept+'" พร้อมตำแหน่งทั้งหมด '+n+' รายการ?\n(พนักงานที่อยู่แผนกนี้ไม่ได้รับผลกระทบ)')) return;
+  const { error } = await db.from('org_positions').delete().eq('dept', dept);
+  if(error) return dbErr(error,'ลบแผนก');
+  orgPos = orgPos.filter(o=>o.dept!==dept);
+  renderOrg(); toast('ลบแผนก '+dept+' แล้ว');
+}
+
 /* ================= TODAY PAGE ================= */
 function renderToday(){
   const el = document.getElementById('todayBody'); if(!el) return;
@@ -2495,7 +2581,7 @@ function updPeriodHint(){
 }
 
 /* ================= BOOT ================= */
-loadAll().then(()=>{ startRealtime(); updPeriodHint(); });
+loadAll().then(()=>{ startRealtime(); updPeriodHint(); renderOrg(); });
 </script>
 </body>
 </html>
