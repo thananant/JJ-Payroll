@@ -436,8 +436,9 @@ tr.grp-dept td{background:#faf7f1;font-size:11.5px;font-weight:600;color:var(--i
     <div class="grid g2">
       <div><label>วันที่ห้ามหยุด</label>
         <div id="mwDays" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px"></div></div>
-      <div><label>ค่าปรับ (บาท/วัน)</label>
-        <input type="number" id="setMustWorkFine" value="400" onchange="saveSetting('must_work_fine', +this.value)"></div>
+      <div><label>ค่าปรับต่อวัน</label>
+        <p style="margin-top:10px"><b>ตามฐานเงินเดือนรายคน</b><br>
+        <span class="muted">รายเดือน = เงินเดือน ÷ 30 (เช่น 12,000 → 400/วัน)<br>รายวัน = ค่าแรงรายวันของคนนั้น</span></p></div>
     </div>
     <p class="muted" style="margin:6px 0 14px">วันหยุดพิเศษ (หน้า 🎌) นับเป็นวันห้ามหยุดด้วยเสมอ · ขาดวันเหล่านี้ = หักตามค่าปรับ · ยกเว้นอัตโนมัติ: ออฟฟิศ (หยุดประจำสัปดาห์) และรายชั่วโมง · ยกเว้นรายคนได้ในฟอร์มพนักงาน</p>
 
@@ -783,7 +784,7 @@ async function loadAll(){
     document.getElementById('setLateFine').value = settings.lateFine;
     document.getElementById('setDefaultWage').value = settings.defaultWage;
     for(const [id,k] of [['setSingleFine','singleFine'],['setCutDay','cutDay'],['setPayDay','payDay'],
-                         ['setAdvDay','advDay'],['setAdvMax','advMax'],['setAdvRatio','advRatio'],['setHourRule','hourRule'],['setMonthDiv','monthDiv'],['setMustWorkFine','mustWorkFine'],['setHourlyStart','hourlyStart'],['setHourlyEnd','hourlyEnd'],['setHourlyMax','hourlyMax']]){
+                         ['setAdvDay','advDay'],['setAdvMax','advMax'],['setAdvRatio','advRatio'],['setHourRule','hourRule'],['setMonthDiv','monthDiv'],['setHourlyStart','hourlyStart'],['setHourlyEnd','hourlyEnd'],['setHourlyMax','hourlyMax']]){
       const el = document.getElementById(id); if(el) el.value = settings[k];
     }
 
@@ -1213,7 +1214,7 @@ function calcPay(emp, period){
       mustViol.push({ day:ds, why: h ? '🎌 '+h.name : 'วัน'+WD_TH[d.getDay()] });
     }
   }
-  const mustFine = mustViol.length * (settings.mustWorkFine||400);
+  const mustFine = Math.round(mustViol.length * dRate);   // หักตามฐานเงินเดือน: เงินเดือน÷30 หรือค่าแรงรายวัน
 
   /* ---- ข้ามสาขา ---- */
   const crossDays = ss.filter(s=>s.workBranch && emp.branch && s.workBranch !== emp.branch);
@@ -1656,7 +1657,7 @@ function renderDetail(){
           ${p.adds.map(a=>`<tr><td style="color:var(--green)">＋ ${a.reason} <button class="btn btn-red btn-sm" style="padding:1px 7px" onclick="delAdj(${a.id})">✕</button></td><td class="num" style="color:var(--green)">${THB2(+a.amount)}</td></tr>`).join('')}
           ${p.missFine? `<tr><td style="color:var(--red)">－ หัก${isH?'ชั่วโมงไม่ครบ':'สาย/ออกก่อน'} (${p.missMin} น. × ${settings.minFine})</td><td class="num" style="color:var(--red)">-${THB2(p.missFine)}</td></tr>`:''}
           ${p.lateAuto? `<tr><td style="color:var(--red)">－ ปรับมาสาย (${p.lateCount} ครั้ง × ${THB(settings.lateFine)})</td><td class="num" style="color:var(--red)">-${THB2(p.lateAuto)}</td></tr>`:''}
-          ${p.mustFine? `<tr><td style="color:var(--red)">－ หยุดวันห้ามหยุด (${p.mustViol.length} วัน × ${THB(settings.mustWorkFine)})</td><td class="num" style="color:var(--red)">-${THB2(p.mustFine)}</td></tr>`:''}
+          ${p.mustFine? `<tr><td style="color:var(--red)">－ หยุดวันห้ามหยุด (${p.mustViol.length} วัน × ${THB(Math.round(p.dRate))})</td><td class="num" style="color:var(--red)">-${THB2(p.mustFine)}</td></tr>`:''}
           ${p.singleFine? `<tr><td style="color:var(--red)">－ ปรับลืมตอกบัตร (${p.singleCount} ครั้ง × ${THB(settings.singleFine)})</td><td class="num" style="color:var(--red)">-${THB2(p.singleFine)}</td></tr>`:''}
           ${p.advs.map(a=>`<tr><td style="color:var(--red)">－ เบิกกลางเดือน ${dayLabel(a.date)} <button class="btn btn-red btn-sm" style="padding:1px 7px" onclick="delAdv(${a.id})">✕</button></td><td class="num" style="color:var(--red)">-${THB2(a.amount)}</td></tr>`).join('')}
           ${p.dedu.map(a=>`<tr><td style="color:var(--red)">－ ${a.reason} <button class="btn btn-red btn-sm" style="padding:1px 7px" onclick="delAdj(${a.id})">✕</button></td><td class="num" style="color:var(--red)">-${THB2(+a.amount)}</td></tr>`).join('')}
@@ -1698,7 +1699,7 @@ function renderDetail(){
           <span class="small">รวมทั้งงวด: ${Object.entries(p.byBranch).map(([b,n])=>((BR[b]||{}).t||b)+' '+n+' วัน').join(' · ')}</span>
         </div>`:''}
         ${p.mustViol.length? `<div class="warn-note" style="margin-top:12px;margin-bottom:0;background:var(--red-soft);border-color:#f3c4b5;color:#a03014">
-          🚫 <b>หยุดวันห้ามหยุด ${p.mustViol.length} วัน</b> — หักวันละ ${THB(settings.mustWorkFine)} รวม ${THB(p.mustFine)} บาท<br>
+          🚫 <b>หยุดวันห้ามหยุด ${p.mustViol.length} วัน</b> — หักวันละ ${THB(Math.round(p.dRate))} (ตามฐานเงินเดือน${e.type==='monthly'?' ÷ '+(settings.monthDiv||30):''}) รวม ${THB(p.mustFine)} บาท<br>
           ${p.mustViol.map(v=>dayLabel(v.day)+' ('+v.why+')').join(' · ')}
         </div>`:''}
         ${p.singleCount? `<div class="warn-note" style="margin-top:12px;margin-bottom:0">
@@ -1818,7 +1819,7 @@ function openSlip(empId, period){
   if(p.missFine)   dedRows.push([isH?`ชั่วโมงไม่ครบ (${p.missMin} นาที × ${settings.minFine})`:`มาสาย/ออกก่อนเวลา (${p.missMin} นาที × ${settings.minFine})`, p.missFine]);
   if(p.lateAuto)   dedRows.push([`ปรับมาสาย (${p.lateCount} ครั้ง × ${THB(settings.lateFine)})`, p.lateAuto]);
   if(p.singleFine) dedRows.push([`ปรับลืมตอกบัตร (${p.singleCount} ครั้ง × ${THB(settings.singleFine)})`, p.singleFine]);
-  if(p.mustFine) dedRows.push([`หยุดวันห้ามหยุด ${p.mustViol.map(v=>dayLabel(v.day)).join(', ')} (${p.mustViol.length} วัน × ${THB(settings.mustWorkFine)})`, p.mustFine]);
+  if(p.mustFine) dedRows.push([`หยุดวันห้ามหยุด ${p.mustViol.map(v=>dayLabel(v.day)).join(', ')} (${p.mustViol.length} วัน × ${THB(Math.round(p.dRate))})`, p.mustFine]);
   p.advs.forEach(a=>dedRows.push([`เบิกล่วงหน้า ${dayLabel(a.date)}${a.note?' — '+a.note:''}`, +a.amount]));
   p.dedu.forEach(a=>dedRows.push([a.reason, +a.amount]));
 
