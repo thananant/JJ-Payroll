@@ -10,29 +10,37 @@
 <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@400;500;600;700&family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 :root{
-  --ink:#262220; --ink-soft:#6b625b; --bg:#f4f1ec; --panel:#ffffff;
-  --line:#e5ded5; --charcoal:#23201c;
-  --ember:#e8590c; --ember-soft:#fff0e6; --ember-deep:#c14a08;
-  --green:#2f9e44; --green-soft:#e9f7ec; --red:#d9480f; --red-soft:#fdeeea;
-  --blue:#1971c2; --blue-soft:#e7f1fa; --amber:#b7791f; --amber-soft:#fdf6e3;
-  --violet:#6741d9; --violet-soft:#f0ebfc;
-  --radius:12px;
+  /* ===== CI จริงใจหมูกระทะ — แก้สีแบรนด์ 3 ตัวนี้ที่เดียว เปลี่ยนทั้งแอป ===== */
+  --brand:#ff5a1f;            /* ส้มหลักของแบรนด์ */
+  --brand-2:#ff8a3d;          /* ส้มอ่อน (ปลาย gradient) */
+  --brand-deep:#d9430c;       /* ส้มเข้ม (ตัวหนังสือ/hover) */
+  --brand-grad:linear-gradient(135deg,var(--brand-2) 0%,var(--brand) 55%,var(--brand-deep) 100%);
+
+  --ink:#2b2420; --ink-soft:#8a7f76; --bg:#f7f4f0; --panel:#ffffff;
+  --line:#eee7dd; --charcoal:#2b2420;
+  --ember:var(--brand); --ember-soft:#fff1e9; --ember-deep:var(--brand-deep);
+  --green:#22a54a; --green-soft:#e9f8ee; --red:#e03616; --red-soft:#fdeeea;
+  --blue:#1971c2; --blue-soft:#e7f1fa; --amber:#c07f14; --amber-soft:#fdf5e0;
+  --violet:#6f4bd8; --violet-soft:#f1ecfc;
+  --radius:16px;
+  --shadow:0 1px 2px rgba(43,36,32,.04), 0 6px 20px rgba(43,36,32,.06);
 }
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Sarabun',sans-serif;background:var(--bg);color:var(--ink);font-size:15px}
 h1,h2,h3,.font-display{font-family:'Prompt',sans-serif}
 
 .layout{display:flex;min-height:100vh}
-aside{width:232px;flex-shrink:0;background:var(--charcoal);color:#f5efe8;display:flex;flex-direction:column;position:sticky;top:0;height:100vh}
-.brand{display:flex;align-items:center;gap:12px;padding:18px 16px 14px;border-bottom:1px solid #3a342d}
-.brand .flame{width:38px;height:38px;border-radius:10px;background:linear-gradient(160deg,#ff922b,#e8590c 55%,#a63603);display:flex;align-items:center;justify-content:center;font-size:20px;box-shadow:0 0 14px rgba(232,89,12,.45);flex-shrink:0}
-.brand h1{font-size:16px;font-weight:600}
-.brand small{display:block;font-weight:400;color:#b9ad9f;font-size:11.5px}
-aside nav{display:flex;flex-direction:column;gap:2px;padding:12px 10px;flex:1;overflow-y:auto}
-aside nav button{font-family:'Prompt',sans-serif;background:none;border:none;color:#a89c8e;padding:11px 14px;font-size:14.5px;cursor:pointer;text-align:left;border-radius:9px;border-left:3px solid transparent;white-space:nowrap}
-aside nav button.active{color:#fff;background:#332e28;border-left-color:var(--ember);text-shadow:0 0 12px rgba(232,89,12,.6)}
-aside nav button:hover{color:#e8ddd0}
-.side-foot{padding:12px 10px;border-top:1px solid #3a342d;display:flex;flex-direction:column;gap:8px}
+aside{width:242px;flex-shrink:0;background:#fff;color:var(--ink);display:flex;flex-direction:column;position:sticky;top:0;height:100vh;border-right:1px solid var(--line)}
+.brand{display:flex;align-items:center;gap:12px;padding:20px 16px 16px}
+.brand .flame{width:42px;height:42px;border-radius:13px;background:var(--brand-grad);display:flex;align-items:center;justify-content:center;font-size:21px;box-shadow:0 6px 16px rgba(255,90,31,.35);flex-shrink:0;overflow:hidden}
+.brand .flame img{width:100%;height:100%;object-fit:cover}
+.brand h1{font-size:16.5px;font-weight:600;color:var(--brand-deep)}
+.brand small{display:block;font-weight:400;color:var(--ink-soft);font-size:11.5px}
+aside nav{display:flex;flex-direction:column;gap:3px;padding:6px 12px;flex:1;overflow-y:auto}
+aside nav button{font-family:'Prompt',sans-serif;background:none;border:none;color:var(--ink-soft);padding:11px 14px;font-size:14.5px;cursor:pointer;text-align:left;border-radius:12px;white-space:nowrap;transition:.15s}
+aside nav button.active{color:#fff;background:var(--brand-grad);box-shadow:0 6px 14px rgba(255,90,31,.32);font-weight:500}
+aside nav button:hover:not(.active){color:var(--brand-deep);background:var(--ember-soft)}
+.side-foot{padding:12px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:8px}
 .side-foot .btn{width:100%;justify-content:flex-start}
 .content{flex:1;min-width:0}
 @media(max-width:860px){
@@ -44,8 +52,8 @@ aside nav button:hover{color:#e8ddd0}
   .side-foot{flex-direction:row}
   .side-foot .btn{width:auto}
 }
-.btn{font-family:'Prompt',sans-serif;border:none;border-radius:9px;padding:8px 16px;font-size:14px;cursor:pointer;font-weight:500;transition:.15s;display:inline-flex;align-items:center;gap:6px}
-.btn-ember{background:var(--ember);color:#fff}.btn-ember:hover{background:var(--ember-deep)}
+.btn{font-family:'Prompt',sans-serif;border:none;border-radius:99px;padding:8px 18px;font-size:14px;cursor:pointer;font-weight:500;transition:.15s;display:inline-flex;align-items:center;gap:6px}
+.btn-ember{background:var(--brand-grad);color:#fff;box-shadow:0 4px 12px rgba(255,90,31,.3)}.btn-ember:hover{filter:brightness(1.06);box-shadow:0 6px 16px rgba(255,90,31,.42)}
 .btn-ghost{background:transparent;color:#d8cfc4;border:1px solid #4a443c}.btn-ghost:hover{border-color:#7a7268;color:#fff}
 .btn-light{background:#fff;border:1px solid var(--line);color:var(--ink)}.btn-light:hover{border-color:#c9beb0}
 .btn-green{background:var(--green);color:#fff}.btn-green:hover{background:#268a3b}
@@ -57,14 +65,14 @@ main:has(#page-cal.active){max-width:none}   /* หน้าปฏิทิน�
 main:has(#page-today.active){max-width:none} /* หน้าวันนี้ด้วย ข้อมูลเยอะ */
 .page{display:none}.page.active{display:block}
 
-.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:20px;margin-bottom:18px}
+.card{background:var(--panel);border:1px solid #f3ede5;border-radius:var(--radius);padding:22px;margin-bottom:18px;box-shadow:var(--shadow)}
 .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:18px}
-.stat{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px;position:relative;overflow:hidden}
+.stat{background:var(--panel);border:1px solid #f3ede5;border-radius:var(--radius);padding:15px 18px;position:relative;overflow:hidden;box-shadow:var(--shadow)}
 .stat::after{content:'';position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--ember)}
 .stat .v{font-family:'Prompt',sans-serif;font-size:24px;font-weight:600}
 .stat .l{color:var(--ink-soft);font-size:13px}
 
-.tbl-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--radius);background:#fff}
+.tbl-wrap{overflow-x:auto;border:1px solid #f3ede5;border-radius:var(--radius);background:#fff;box-shadow:var(--shadow)}
 table{width:100%;border-collapse:collapse;font-size:14px}
 th{font-family:'Prompt',sans-serif;font-weight:500;text-align:left;background:#faf7f1;color:var(--ink-soft);padding:10px 12px;border-bottom:1px solid var(--line);white-space:nowrap;position:sticky;top:0}
 td{padding:9px 12px;border-bottom:1px solid #f0ebe2;white-space:nowrap}
@@ -90,7 +98,8 @@ th.num{text-align:right}
 .drop .ic{font-size:34px}
 
 label{display:block;font-size:13px;color:var(--ink-soft);margin-bottom:4px;font-weight:600}
-input,select{font-family:'Sarabun',sans-serif;font-size:14.5px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;width:100%;background:#fff;color:var(--ink)}
+input,select{font-family:'Sarabun',sans-serif;font-size:14.5px;padding:9px 13px;border:1.5px solid var(--line);border-radius:12px;width:100%;background:#fff;color:var(--ink);transition:.15s}
+input:focus,select:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0 3px rgba(255,90,31,.12)}
 input:focus,select:focus{outline:2px solid rgba(232,89,12,.25);border-color:var(--ember)}
 td input,td select{padding:5px 8px;font-size:13.5px}
 .grid{display:grid;gap:12px}
@@ -99,7 +108,7 @@ td input,td select{padding:5px 8px;font-size:13.5px}
 
 .modal-bg{display:none;position:fixed;inset:0;background:rgba(30,25,20,.55);z-index:50;padding:20px;overflow-y:auto}
 .modal-bg.show{display:flex;align-items:flex-start;justify-content:center}
-.modal{background:#fff;border-radius:16px;max-width:560px;width:100%;margin:24px auto;padding:24px;position:relative}
+.modal{background:#fff;border-radius:20px;max-width:560px;width:100%;margin:24px auto;padding:26px;position:relative;box-shadow:0 24px 60px rgba(43,36,32,.22)}
 .modal .close{position:absolute;top:14px;right:14px;background:#f1ede6;border:none;width:32px;height:32px;border-radius:8px;font-size:16px;cursor:pointer;color:var(--ink-soft)}
 .modal h2{font-size:19px;margin-bottom:4px}
 .muted{color:var(--ink-soft);font-size:13.5px}
@@ -182,7 +191,7 @@ tr.grp-dept td{background:#faf7f1;font-size:11.5px;font-weight:600;color:var(--i
 <div class="layout">
 <aside>
   <div class="brand">
-    <div class="flame">🔥</div>
+    <div class="flame"><img src="logo.png" alt="" onerror="this.remove()">🔥</div>
     <div><h1>JJMK Payroll <small>จริงใจหมูกระทะ · ระบบเงินเดือน</small></h1></div>
   </div>
   <nav>
