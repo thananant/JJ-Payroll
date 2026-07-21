@@ -202,6 +202,7 @@ tr.grp-dept td{background:#faf7f1;font-size:11.5px;font-weight:600;color:var(--i
     <button data-page="cal" onclick="go('cal')">📅 ปฏิทินเข้างาน</button>
     <button data-page="adv" onclick="go('adv')">💵 เบิกกลางเดือน</button>
     <button data-page="dep" onclick="go('dep')">🛡️ เงินประกัน</button>
+    <button data-page="mou" onclick="go('mou')">📄 เอกสาร MOU</button>
     <button data-page="shift" onclick="go('shift')">🕐 กะการทำงาน</button>
     <button data-page="holi" onclick="go('holi')">🎌 วันหยุดพิเศษ</button>
     <button data-page="settings" onclick="go('settings')">⚙️ ตั้งค่า</button>
@@ -359,6 +360,44 @@ tr.grp-dept td{background:#faf7f1;font-size:11.5px;font-weight:600;color:var(--i
   <div class="muted" id="depInfo" style="margin-bottom:10px"></div>
   <div class="stats" id="depStats"></div>
   <div class="tbl-wrap"><table id="depTable"></table></div>
+</div>
+
+<!-- ============ MOU ============ -->
+<div class="page" id="page-mou">
+  <div class="toolbar">
+    <label style="margin:0;display:flex;align-items:center;gap:8px;font-size:14px">งวด:
+      <select id="mouPeriodSel" onchange="renderMou()" style="width:auto;min-width:200px"></select>
+    </label>
+    <select id="mouBranch" onchange="renderMou()" style="width:auto;min-width:150px">
+      <option value="">ทุกสาขา</option><option value="JJLP">ลาดพร้าว</option>
+      <option value="JJRD">รัชดา</option><option value="OFFICE">ออฟฟิศ</option>
+    </select>
+    <select id="mouStatus" onchange="renderMou()" style="width:auto;min-width:180px">
+      <option value="">ทุกสถานะ</option>
+      <option value="paying">กำลังผ่อน</option>
+      <option value="done">ครบแล้ว — รอคืนเอกสาร</option>
+      <option value="returned">คืนเอกสารแล้ว</option>
+    </select>
+    <input type="search" id="mouSearch" placeholder="ค้นหาชื่อ…" oninput="renderMou()" style="max-width:200px">
+    <span style="flex:1"></span>
+    <button class="btn btn-ember" onclick="openMouForm()">＋ เพิ่มรายการ MOU</button>
+  </div>
+  <div class="muted" id="mouInfo" style="margin-bottom:10px"></div>
+  <div class="stats" id="mouStats"></div>
+  <div class="tbl-wrap"><table id="mouTable"></table></div>
+
+  <div class="card" style="margin-top:18px">
+    <div class="section-title" style="margin-top:0">📒 สมุดยืม-คืนเอกสาร</div>
+    <p class="muted" style="margin-bottom:10px">พนักงานขอยืม Passport / บัตรชมพู ไปทำธุระระหว่างที่บริษัทเก็บไว้ — จดวันที่ยืม แล้วกด 📥 รับคืน เมื่อได้เอกสารกลับมา</p>
+    <div class="toolbar">
+      <select id="borrowFilter" onchange="renderMou()" style="width:auto;min-width:140px">
+        <option value="">ทั้งหมด</option><option value="out">ยังไม่คืน</option><option value="back">คืนแล้ว</option>
+      </select>
+      <span style="flex:1"></span>
+      <button class="btn btn-ember btn-sm" onclick="openBorrowForm()">＋ บันทึกยืมเอกสาร</button>
+    </div>
+    <div class="tbl-wrap"><table id="borrowTable"></table></div>
+  </div>
 </div>
 
 <!-- ============ SHIFTS ============ -->
@@ -683,6 +722,62 @@ tr.grp-dept td{background:#faf7f1;font-size:11.5px;font-weight:600;color:var(--i
   </div>
 </div>
 
+<!-- ============ MOU MODAL ============ -->
+<div class="modal-bg" id="mouBg" onclick="if(event.target===this)closeModal('mouBg')">
+  <div class="modal">
+    <button class="close" onclick="closeModal('mouBg')">✕</button>
+    <h2 class="font-display">📄 เพิ่มรายการยืมเงิน MOU</h2>
+    <p class="muted" style="margin-bottom:14px">บริษัทออกเงินให้ไปทำ MOU · หักคืนจากเงินเดือนอัตโนมัติจนครบ ถึงจะคืนเอกสารได้</p>
+    <div class="grid g2">
+      <div style="grid-column:1/-1"><label>พนักงาน *</label><select id="mouEmp"></select></div>
+      <div><label>ยอดเงินที่ยืม (บาท)</label><input type="number" id="mouAmount" value="15000" min="0" step="500"></div>
+      <div><label>เริ่มหักตั้งแต่งวด</label><select id="mouStart"></select></div>
+      <div><label>หักต่อเดือน (บาท)</label><input type="number" id="mouMonthly" value="2000" min="0" step="500"></div>
+      <div><label>งวดสุดท้ายหักไม่เกิน (บาท)</label><input type="number" id="mouFinal" value="3000" min="0" step="500">
+        <p class="muted" style="margin-top:4px">พอคงเหลือ ≤ เท่านี้ หักหมดในงวดเดียว เช่น 15,000 = 2,000×6 + 3,000</p></div>
+      <div><label>หักไปแล้วก่อนเริ่มใช้ระบบ (บาท)</label><input type="number" id="mouOpening" value="0" min="0" step="500"></div>
+      <div><label>หมายเหตุ</label><input id="mouNote" placeholder="ไม่ใส่ก็ได้"></div>
+    </div>
+    <div class="section-title" style="margin-bottom:8px">เอกสารที่บริษัทเก็บไว้</div>
+    <div style="display:flex;gap:16px;flex-wrap:wrap">
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-weight:400;color:var(--ink)">
+        <input type="checkbox" id="mouDocPass" style="width:auto" checked> 🛂 Passport</label>
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-weight:400;color:var(--ink)">
+        <input type="checkbox" id="mouDocPink" style="width:auto" checked> 🪪 บัตรชมพู</label>
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-weight:400;color:var(--ink)">
+        <input type="checkbox" id="mouDocComplete" style="width:auto"> ✅ เอกสาร MOU ครบถ้วนแล้ว</label>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:20px;justify-content:flex-end">
+      <button class="btn btn-light" onclick="closeModal('mouBg')">ยกเลิก</button>
+      <button class="btn btn-ember" onclick="saveMouLoan()">บันทึก</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ DOC BORROW MODAL ============ -->
+<div class="modal-bg" id="borrowBg" onclick="if(event.target===this)closeModal('borrowBg')">
+  <div class="modal">
+    <button class="close" onclick="closeModal('borrowBg')">✕</button>
+    <h2 class="font-display">📒 บันทึกยืมเอกสาร</h2>
+    <p class="muted" style="margin-bottom:14px">พนักงานขอยืมเอกสารที่บริษัทเก็บไว้ ไปทำธุระ</p>
+    <div class="grid g2">
+      <div style="grid-column:1/-1"><label>พนักงาน *</label><select id="bEmp"></select></div>
+      <div><label>เอกสารที่ยืม *</label>
+        <input id="bDoc" list="docList" value="Passport">
+        <datalist id="docList">
+          <option>Passport</option><option>บัตรชมพู</option>
+          <option>ใบอนุญาตทำงาน</option><option>Passport + บัตรชมพู</option>
+        </datalist></div>
+      <div><label>วันที่ยืม *</label><input type="date" id="bDate"></div>
+    </div>
+    <div style="margin-top:12px"><label>หมายเหตุ (เอาไปทำอะไร)</label><input id="bNote" placeholder="เช่น ต่อวีซ่า / กลับบ้าน / ติดต่อราชการ"></div>
+    <div style="display:flex;gap:10px;margin-top:20px;justify-content:flex-end">
+      <button class="btn btn-light" onclick="closeModal('borrowBg')">ยกเลิก</button>
+      <button class="btn btn-ember" onclick="saveBorrow()">บันทึกยืม</button>
+    </div>
+  </div>
+</div>
+
 <!-- ============ ADVANCE MODAL ============ -->
 <div class="modal-bg" id="advBg" onclick="if(event.target===this)closeModal('advBg')">
   <div class="modal">
@@ -720,6 +815,10 @@ let settings = { cutoff:6, defaultWage:400, minFine:0, lateFine:0, loadMonths:8,
 let advances = [];
 let depositEntries = [];   // เงินประกัน: override รายงวด {id, empId, period, amount}
 let depReady = false;      // true เมื่อรัน jj_deposit.sql แล้ว
+let mouLoans = [];         // เงินยืม MOU รายคน
+let mouEntries = [];       // override การหัก MOU รายงวด
+let docBorrows = [];       // สมุดยืม-คืนเอกสาร
+let mouReady = false;      // true เมื่อรัน jj_mou.sql แล้ว
 let holidays = {};   // 'YYYY-MM-DD' -> {name, mult}
 let devBranch = {};  // device_sn -> branch
 let orgPos = [];     // โครงสร้าง {id, dept, name} จากตาราง org_positions
@@ -767,6 +866,13 @@ const shiftsFor = emp => {
   return list.length ? list : shiftDefs;
 };
 const fromDbDep = r => ({ id:r.id, empId:r.employee_id, period:r.period, amount:+r.amount, note:r.note||'' });
+const fromDbMou = r => ({ id:r.id, empId:r.employee_id, amount:+r.amount, monthly:+r.monthly,
+  finalMax:+r.final_max, startPeriod:r.start_period||'', opening:+(r.opening||0),
+  docPassport:!!r.doc_passport, docPink:!!r.doc_pink, docComplete:!!r.doc_complete,
+  note:r.note||'', returnedAt:r.returned_at||null });
+const fromDbMouE = r => ({ id:r.id, empId:r.employee_id, period:r.period, amount:+r.amount });
+const fromDbBorrow = r => ({ id:r.id, empId:r.employee_id, doc:r.doc||'', borrowDate:r.borrow_date,
+  returnDate:r.return_date||null, note:r.note||'' });
 const fromDbAdj = r => ({ id:r.id, empId:r.employee_id, kind:r.kind, reason:r.reason,
   amount:+r.amount, period:r.period });
 
@@ -798,6 +904,19 @@ async function loadAll(){
     try{ const de = await db.from('deposit_entries').select('*');
          if(!de.error){ depositEntries = (de.data||[]).map(fromDbDep); depReady = true; }
     }catch(_){ depReady = false; /* ยังไม่รัน jj_deposit.sql */ }
+    try{
+      const [ml, me, bo] = await Promise.all([
+        db.from('mou_loans').select('*'),
+        db.from('mou_entries').select('*'),
+        db.from('doc_borrows').select('*').order('borrow_date', { ascending:false }),
+      ]);
+      if(!ml.error && !me.error && !bo.error){
+        mouLoans = (ml.data||[]).map(fromDbMou);
+        mouEntries = (me.data||[]).map(fromDbMouE);
+        docBorrows = (bo.data||[]).map(fromDbBorrow);
+        mouReady = true;
+      }
+    }catch(_){ mouReady = false; /* ยังไม่รัน jj_mou.sql */ }
     devBranch = {}; (dv.data||[]).forEach(d=>{ if(d.branch) devBranch[d.sn] = d.branch; });
 
     shiftDefs = (sh.data||[]).map(fromDbShift);
@@ -893,12 +1012,12 @@ function go(p){
   document.getElementById('page-'+p).classList.add('active');
   document.querySelectorAll('aside nav button').forEach(b=>b.classList.toggle('active',b.dataset.page===p));
   document.querySelector('main').style.maxWidth = (p==='cal'||p==='today') ? 'none' : '';
-  if(p==='emp')renderEmp(); if(p==='payroll')renderPayroll(); if(p==='cal')renderCalendar(); if(p==='adv')renderAdv(); if(p==='dep')renderDeposit(); if(p==='holi')renderHoli();
+  if(p==='emp')renderEmp(); if(p==='payroll')renderPayroll(); if(p==='cal')renderCalendar(); if(p==='adv')renderAdv(); if(p==='dep')renderDeposit(); if(p==='mou')renderMou(); if(p==='holi')renderHoli();
   if(p==='detail'){renderDetailSelector();renderDetail();} if(p==='shift')renderShifts(); if(p==='today')renderToday(); if(p==='settings')renderOrg();
   window.scrollTo(0,0);
 }
 function closeModal(id){ document.getElementById(id).classList.remove('show'); }
-function renderAll(){ renderEmp(); renderPayroll(); renderDetailSelector(); renderDetail(); if(typeof renderAdv==='function') renderAdv(); if(typeof renderDeposit==='function') renderDeposit(); if(typeof renderToday==='function') renderToday(); }
+function renderAll(){ renderEmp(); renderPayroll(); renderDetailSelector(); renderDetail(); if(typeof renderAdv==='function') renderAdv(); if(typeof renderDeposit==='function') renderDeposit(); if(typeof renderMou==='function') renderMou(); if(typeof renderToday==='function') renderToday(); }
 
 /* ================= IMPORT ================= */
 const drop = document.getElementById('drop');
@@ -1166,7 +1285,7 @@ function allPeriods(){
 }
 function refreshPeriodSelectors(){
   const ps = allPeriods();
-  for(const id of ['periodSel','adjPeriod','detailPeriodSel','calPeriodSel','advPeriodSel','depPeriodSel']){
+  for(const id of ['periodSel','adjPeriod','detailPeriodSel','calPeriodSel','advPeriodSel','depPeriodSel','mouPeriodSel']){
     const sel = document.getElementById(id); const cur = sel.value;
     sel.innerHTML = ps.map(p=>`<option value="${p}">${periodLabel(p)}</option>`).join('') || '<option value="">– ยังไม่มีข้อมูล –</option>';
     if(ps.includes(cur)) sel.value = cur;
@@ -1274,11 +1393,12 @@ function calcPay(emp, period){
   const advs   = advances.filter(a=>a.empId===emp.id && a.period===period);
   const advSum = advs.reduce((a,x)=>a+ +x.amount,0);
   const dep = depositCalc(emp, period);
-  const deduSum = dedu.reduce((a,x)=>a+ +x.amount,0) + missFine + lateAuto + singleFine + advSum + mustFine + dep.ded;
+  const mou = mouCalc(emp, period);
+  const deduSum = dedu.reduce((a,x)=>a+ +x.amount,0) + missFine + lateAuto + singleFine + advSum + mustFine + dep.ded + mou.ded;
   return { days, lateCount, singleCount, singleDays, hours, fullHrs, missMin, lateMin, earlyMin, shortMin,
            base, adds, dedu, addSum, deduSum, missFine, lateAuto, singleFine, advs, advSum,
            dRate, holiDays, holiBonus, paidHoli, holiWorked, holiInPeriod, mustViol, mustFine,
-           dep, offDue, offUsed, noOffDays, noOffBonus, wkOffWorked,
+           dep, mou, offDue, offUsed, noOffDays, noOffBonus, wkOffWorked,
            crossDays, byBranch, dip,
            net: base + addSum - deduSum };
 }
@@ -1428,6 +1548,312 @@ function renderDeposit(){
       <td>${d.done?'<span class="chip chip-green">✓ ครบแล้ว</span>':'<span class="chip chip-amber">เหลืออีก '+Math.ceil(d.remain/Math.max(1,e.depMonthly||500))+' งวด</span>'}</td>
     </tr>`).join('')
     : '<tr><td colspan="10"><div class="empty">ไม่พบพนักงานตามเงื่อนไข</div></td></tr>') + '</tbody>';
+}
+
+/* ================= MOU: ยืมเงินทำ MOU + เก็บเอกสาร ================= */
+/* หักเดือนละ monthly (2,000) จากทุกงวดที่มีวันทำงาน ตั้งแต่งวด startPeriod
+   พอคงเหลือ <= finalMax (3,000) หักหมดในงวดเดียว = "เดือนสุดท้าย 3,000"
+   ครบเมื่อไหร่ถึงจะคืน Passport / บัตรชมพู ได้ */
+function mouCalc(emp, period){
+  const L = mouLoans.find(x=>x.empId===emp.id);
+  if(!L || !+L.amount) return { loan:L||null, ded:0, collected:0, target:0, remain:0, done:true, override:null };
+  const target = +L.amount;
+  const pds = [...new Set((shifts[emp.code]||[]).map(x=>periodOf(x.day)))];
+  if(period && !pds.includes(period)) pds.push(period);
+  const list = pds.filter(p=>!L.startPeriod || p >= L.startPeriod).sort();
+  let collected = +(L.opening||0), ded = 0, override = null;
+  for(const pd of list){
+    if(period && pd > period) break;
+    const ov = mouEntries.find(x=>x.empId===emp.id && x.period===pd);
+    const hasWork = (shifts[emp.code]||[]).some(x=>periodOf(x.day)===pd);
+    const remain = Math.max(0, target - collected);
+    let d = ov ? Math.max(0, +ov.amount)
+               : hasWork ? (remain <= +(L.finalMax||3000) ? remain : Math.min(+(L.monthly||2000), remain)) : 0;
+    if(pd === period){ ded = d; override = ov||null; }
+    collected += d;
+  }
+  return { loan:L, ded, override, collected, target,
+           remain: Math.max(0, target - collected), done: collected >= target };
+}
+const mouMonthsLeft = (remain, monthly, finalMax) =>
+  remain <= 0 ? 0 : remain <= finalMax ? 1 : Math.ceil((remain - finalMax) / Math.max(1, monthly)) + 1;
+
+async function updMouField(loanId, field, val){
+  if(!mouReady) return toast('❌ ต้องรัน jj_mou.sql ใน Supabase ก่อน');
+  const { error } = await db.from('mou_loans').update({ [field]: val }).eq('id', loanId);
+  if(error) return dbErr(error,'บันทึก MOU');
+  const L = mouLoans.find(x=>x.id===loanId);
+  const map = { amount:'amount', monthly:'monthly', final_max:'finalMax', start_period:'startPeriod',
+                opening:'opening', doc_passport:'docPassport', doc_pink:'docPink',
+                doc_complete:'docComplete', note:'note' };
+  if(L && map[field]) L[map[field]] = (typeof val==='boolean')? val : (isNaN(+val)||field==='start_period'||field==='note' ? val : +val);
+  renderMou(); renderPayroll(); renderDetail(); toast('บันทึกแล้ว');
+}
+async function setMouOverride(empId, period, val){
+  if(!mouReady) return toast('❌ ต้องรัน jj_mou.sql ใน Supabase ก่อน');
+  const cur = mouEntries.find(x=>x.empId===empId && x.period===period);
+  const v = String(val).trim();
+  if(v === ''){
+    if(cur){
+      const { error } = await db.from('mou_entries').delete().eq('id', cur.id);
+      if(error) return dbErr(error,'ลบรายการ MOU');
+      mouEntries = mouEntries.filter(x=>x.id!==cur.id);
+      toast('↺ กลับเป็นหักอัตโนมัติ');
+    }
+  } else {
+    const amount = Math.max(0, Math.floor(+v)||0);
+    const { data, error } = await db.from('mou_entries')
+      .upsert({ employee_id:empId, period, amount }, { onConflict:'employee_id,period' })
+      .select().single();
+    if(error) return dbErr(error,'บันทึก MOU');
+    if(cur){ cur.amount = amount; } else mouEntries.push(fromDbMouE(data));
+    toast(amount? 'หัก MOU งวดนี้ '+THB(amount)+' บาท' : 'งดหัก MOU งวดนี้');
+  }
+  renderMou(); renderPayroll(); renderDetail();
+}
+function editMou(empId, period){
+  const e = employees.find(x=>x.id===empId);
+  const m = mouCalc(e, period);
+  if(!m.loan) return toast('❌ คนนี้ไม่มีรายการยืม MOU');
+  const v = prompt('📄 หักเงินยืม MOU งวดนี้ — '+e.nick+
+    '\nปกติหัก '+THB(m.loan.monthly)+'/เดือน (งวดสุดท้าย '+THB(m.loan.finalMax)+')'+
+    '\nผ่อนแล้ว '+THB(m.collected - m.ded)+' / ยอดยืม '+THB(m.target)+
+    '\n\nใส่จำนวนบาท · 0 = งดหักงวดนี้ · เว้นว่างแล้วตกลง = กลับเป็นหักอัตโนมัติ',
+    m.override ? m.ded : '');
+  if(v === null) return;
+  setMouOverride(empId, period, v);
+}
+function openMouForm(){
+  if(!mouReady) return toast('❌ ต้องรัน jj_mou.sql ใน Supabase ก่อน');
+  const free = employees.filter(e=>e.active && !mouLoans.find(l=>l.empId===e.id))
+    .sort((a,b)=>(a.branch||'').localeCompare(b.branch||'') || a.nick.localeCompare(b.nick,'th'));
+  if(!free.length) return toast('❌ พนักงานทุกคนมีรายการ MOU แล้ว');
+  document.getElementById('mouEmp').innerHTML = free.map(e=>
+    `<option value="${e.id}">${e.nick}${e.full?' ('+e.full+')':''} · ${(BR[e.branch]||{}).t||'–'}</option>`).join('');
+  const ps = allPeriods();
+  const cur = (document.getElementById('mouPeriodSel')||{}).value || ps[0] || periodOf(localYMD(new Date()));
+  document.getElementById('mouStart').innerHTML =
+    [...new Set([cur, ...ps])].sort().reverse().map(p=>`<option value="${p}" ${p===cur?'selected':''}>${periodLabel(p)}</option>`).join('');
+  document.getElementById('mouAmount').value = 15000;
+  document.getElementById('mouMonthly').value = 2000;
+  document.getElementById('mouFinal').value = 3000;
+  document.getElementById('mouOpening').value = 0;
+  document.getElementById('mouDocPass').checked = true;
+  document.getElementById('mouDocPink').checked = true;
+  document.getElementById('mouDocComplete').checked = false;
+  document.getElementById('mouNote').value = '';
+  document.getElementById('mouBg').classList.add('show');
+}
+async function saveMouLoan(){
+  const empId = +document.getElementById('mouEmp').value;
+  const amount = +document.getElementById('mouAmount').value;
+  if(!empId) return toast('❌ เลือกพนักงาน');
+  if(!amount || amount<=0) return toast('❌ ใส่ยอดเงินที่ยืม');
+  const row = { employee_id:empId, amount,
+    monthly:+document.getElementById('mouMonthly').value||2000,
+    final_max:+document.getElementById('mouFinal').value||3000,
+    start_period:document.getElementById('mouStart').value||'',
+    opening:+document.getElementById('mouOpening').value||0,
+    doc_passport:document.getElementById('mouDocPass').checked,
+    doc_pink:document.getElementById('mouDocPink').checked,
+    doc_complete:document.getElementById('mouDocComplete').checked,
+    note:document.getElementById('mouNote').value.trim() };
+  const { data, error } = await db.from('mou_loans').insert(row).select().single();
+  if(error) return dbErr(error,'บันทึก MOU');
+  mouLoans.push(fromDbMou(data));
+  closeModal('mouBg'); renderMou(); renderPayroll(); renderDetail();
+  toast('บันทึกยืม MOU '+THB(amount)+' บาทแล้ว');
+}
+async function markMouReturned(loanId){
+  const L = mouLoans.find(x=>x.id===loanId); if(!L) return;
+  const e = employees.find(x=>x.id===L.empId)||{};
+  const m = mouCalc(e, allPeriods()[0]||'');
+  if(m.remain > 0 && !confirm('⚠️ '+(e.nick||'')+' ยังผ่อนไม่ครบ — คงเหลือ '+THB(m.remain)+' บาท\nยืนยันคืนเอกสาร (Passport/บัตรชมพู) ทั้งที่ยังไม่ครบ?')) return;
+  if(m.remain <= 0 && !confirm('คืน Passport/บัตรชมพู ให้ '+(e.nick||'')+' — บันทึกวันนี้?')) return;
+  const today = localYMD(new Date());
+  const { error } = await db.from('mou_loans').update({ returned_at: today }).eq('id', loanId);
+  if(error) return dbErr(error,'บันทึกคืนเอกสาร');
+  L.returnedAt = today;
+  renderMou(); toast('✅ บันทึกคืนเอกสารแล้ว');
+}
+async function unmarkMouReturned(loanId){
+  const { error } = await db.from('mou_loans').update({ returned_at: null }).eq('id', loanId);
+  if(error) return dbErr(error,'แก้สถานะ');
+  const L = mouLoans.find(x=>x.id===loanId); if(L) L.returnedAt = null;
+  renderMou();
+}
+async function delMouLoan(loanId){
+  const L = mouLoans.find(x=>x.id===loanId); if(!L) return;
+  const e = employees.find(x=>x.id===L.empId)||{};
+  if(!confirm('ลบรายการยืม MOU ของ "'+(e.nick||'?')+'" ?\n(ประวัติการแก้หักรายงวดของคนนี้จะถูกลบด้วย ยอดหักในเงินเดือนย้อนหลังจะหายไป)')) return;
+  let r = await db.from('mou_entries').delete().eq('employee_id', L.empId); if(r.error) return dbErr(r.error,'ลบ MOU');
+  r = await db.from('mou_loans').delete().eq('id', loanId); if(r.error) return dbErr(r.error,'ลบ MOU');
+  mouLoans = mouLoans.filter(x=>x.id!==loanId);
+  mouEntries = mouEntries.filter(x=>x.empId!==L.empId);
+  renderMou(); renderPayroll(); renderDetail(); toast('ลบแล้ว');
+}
+/* ---- สมุดยืม-คืนเอกสาร ---- */
+function openBorrowForm(){
+  if(!mouReady) return toast('❌ ต้องรัน jj_mou.sql ใน Supabase ก่อน');
+  const list = employees.filter(e=>e.active)
+    .sort((a,b)=>(a.branch||'').localeCompare(b.branch||'') || a.nick.localeCompare(b.nick,'th'));
+  document.getElementById('bEmp').innerHTML = list.map(e=>
+    `<option value="${e.id}">${e.nick}${e.full?' ('+e.full+')':''} · ${(BR[e.branch]||{}).t||'–'}</option>`).join('');
+  document.getElementById('bDoc').value = 'Passport';
+  document.getElementById('bDate').value = localYMD(new Date());
+  document.getElementById('bNote').value = '';
+  document.getElementById('borrowBg').classList.add('show');
+}
+async function saveBorrow(){
+  const empId = +document.getElementById('bEmp').value;
+  const doc = document.getElementById('bDoc').value.trim();
+  const bdate = document.getElementById('bDate').value;
+  if(!empId || !doc || !bdate) return toast('❌ กรอกให้ครบ: พนักงาน / เอกสาร / วันที่ยืม');
+  const { data, error } = await db.from('doc_borrows').insert({
+    employee_id:empId, doc, borrow_date:bdate,
+    note:document.getElementById('bNote').value.trim() }).select().single();
+  if(error) return dbErr(error,'บันทึกยืมเอกสาร');
+  docBorrows.unshift(fromDbBorrow(data));
+  closeModal('borrowBg'); renderMou(); toast('บันทึกยืมเอกสารแล้ว');
+}
+async function returnBorrow(id, dateVal){
+  const b = docBorrows.find(x=>x.id===id); if(!b) return;
+  const rd = dateVal || localYMD(new Date());
+  const { error } = await db.from('doc_borrows').update({ return_date: rd }).eq('id', id);
+  if(error) return dbErr(error,'บันทึกคืนเอกสาร');
+  b.returnDate = rd;
+  renderMou(); toast('✅ รับเอกสารคืนแล้ว ('+dayLabel(rd)+')');
+}
+async function unreturnBorrow(id){
+  const b = docBorrows.find(x=>x.id===id); if(!b) return;
+  const { error } = await db.from('doc_borrows').update({ return_date: null }).eq('id', id);
+  if(error) return dbErr(error,'แก้สถานะ');
+  b.returnDate = null; renderMou();
+}
+async function delBorrow(id){
+  if(!confirm('ลบบันทึกยืมเอกสารนี้?')) return;
+  const { error } = await db.from('doc_borrows').delete().eq('id', id);
+  if(error) return dbErr(error,'ลบบันทึก');
+  docBorrows = docBorrows.filter(x=>x.id!==id);
+  renderMou(); toast('ลบแล้ว');
+}
+
+/* ================= MOU PAGE ================= */
+function renderMou(){
+  const tbl = document.getElementById('mouTable'); if(!tbl) return;
+  const period = (document.getElementById('mouPeriodSel')||{}).value || allPeriods()[0] || '';
+  const bf = document.getElementById('mouBranch').value;
+  const sf = document.getElementById('mouStatus').value;
+  const q  = (document.getElementById('mouSearch').value||'').toLowerCase();
+  document.getElementById('mouInfo').innerHTML = mouReady
+    ? `ยืมเงินร้านไปทำ MOU (ปกติคนละ 15,000) · หักคืนจากเงินเดือน <b>2,000/เดือน</b> พอเหลือ ≤ 3,000 หักหมดใน<b>งวดสุดท้าย</b> ·
+       บริษัทเก็บ <b>Passport + บัตรชมพู</b> ไว้ <b style="color:var(--red)">คืนได้เมื่อหักครบเท่านั้น</b> ·
+       แก้จำนวนหักเฉพาะงวดได้ที่ช่อง "หักงวดนี้" หรือหน้าข้อมูลพนักงาน`
+    : '<b style="color:var(--red)">⚠️ ยังไม่ได้รัน jj_mou.sql ใน Supabase SQL Editor — รันก่อนถึงจะบันทึกได้</b>';
+
+  const rows = mouLoans.map(L=>{
+    const e = employees.find(x=>x.id===L.empId);
+    return e? { L, e, m: mouCalc(e, period) } : null;
+  }).filter(Boolean)
+    .filter(({e})=> (!bf||e.branch===bf) && empMatch(e,q))
+    .filter(({L,m})=> !sf ||
+      (sf==='paying' && !m.done) ||
+      (sf==='done' && m.done && !L.returnedAt) ||
+      (sf==='returned' && !!L.returnedAt))
+    .sort((a,b)=> (a.e.branch||'').localeCompare(b.e.branch||'') || a.e.nick.localeCompare(b.e.nick,'th'));
+
+  const nPay = rows.filter(x=>!x.m.done).length;
+  const nWait = rows.filter(x=>x.m.done && !x.L.returnedAt).length;
+  const nRet = rows.filter(x=>!!x.L.returnedAt).length;
+  const sumDed = rows.reduce((a,x)=>a+x.m.ded,0);
+  const sumRemain = rows.reduce((a,x)=>a+x.m.remain,0);
+  const nDocsOut = docBorrows.filter(b=>!b.returnDate).length;
+  document.getElementById('mouStats').innerHTML = `
+    <div class="stat"><div class="v">${rows.length}</div><div class="l">รายการ MOU</div></div>
+    <div class="stat"><div class="v" style="color:${nPay?'var(--amber)':'inherit'}">${nPay}</div><div class="l">กำลังผ่อน</div></div>
+    <div class="stat"><div class="v" style="color:${nWait?'var(--green)':'inherit'}">${nWait}</div><div class="l">ครบแล้ว — รอคืนเอกสาร</div></div>
+    <div class="stat"><div class="v">${nRet}</div><div class="l">คืนเอกสารแล้ว</div></div>
+    <div class="stat"><div class="v" style="color:var(--red)">${THB(sumDed)} ฿</div><div class="l">หักงวดนี้รวม</div></div>
+    <div class="stat"><div class="v">${THB(sumRemain)} ฿</div><div class="l">ค้างผ่อนรวม</div></div>
+    <div class="stat"><div class="v" style="color:${nDocsOut?'var(--red)':'inherit'}">${nDocsOut}</div><div class="l">เอกสารถูกยืมออก ยังไม่คืน</div></div>`;
+
+  tbl.className = 'sticky-act';
+  tbl.innerHTML = `<thead><tr>
+      <th>พนักงาน</th><th>สาขา</th>
+      <th class="num">ยอดยืม</th><th class="num">หัก/เดือน</th><th class="num">งวดสุดท้าย</th>
+      <th>เริ่มหักงวด</th><th class="num">หักมาก่อน</th><th class="num">หักงวดนี้</th>
+      <th class="num">ผ่อนแล้ว</th><th class="num">คงเหลือ</th><th>เอกสารที่เก็บไว้</th><th>สถานะ</th><th></th>
+    </tr></thead><tbody>` +
+    (rows.length? rows.map(({L,e,m})=>{
+      const ps = [...new Set([L.startPeriod, ...allPeriods()])].filter(Boolean).sort().reverse();
+      return `<tr${L.returnedAt?' style="opacity:.65"':m.done?' style="background:#f3fbf5"':''}>
+      <td class="clickable" onclick="openDetail(${e.id})"><b style="color:var(--ember-deep)">${e.nick}</b> <span class="muted">${e.full||''}</span>
+        ${L.note?'<br><span class="muted" style="font-size:11px">📝 '+L.note+'</span>':''}</td>
+      <td>${branchChip(e)}</td>
+      <td class="num"><input type="number" value="${L.amount}" min="0" step="500" style="max-width:95px;text-align:right"
+        onchange="updMouField(${L.id},'amount',+this.value||0)"></td>
+      <td class="num"><input type="number" value="${L.monthly}" min="0" step="500" style="max-width:80px;text-align:right"
+        onchange="updMouField(${L.id},'monthly',+this.value||0)"></td>
+      <td class="num"><input type="number" value="${L.finalMax}" min="0" step="500" style="max-width:80px;text-align:right"
+        title="พอคงเหลือไม่เกินเท่านี้ หักหมดในงวดเดียว"
+        onchange="updMouField(${L.id},'final_max',+this.value||0)"></td>
+      <td><select style="min-width:110px" onchange="updMouField(${L.id},'start_period',this.value)">
+        ${ps.map(p=>`<option value="${p}" ${p===L.startPeriod?'selected':''}>${periodLabel(p)}</option>`).join('')}
+      </select></td>
+      <td class="num"><input type="number" value="${L.opening}" min="0" step="500" style="max-width:90px;text-align:right"
+        title="ยอดที่หักไปก่อนเริ่มใช้ระบบ" onchange="updMouField(${L.id},'opening',+this.value||0)"></td>
+      <td class="num"><input type="number" value="${m.ded}" min="0" step="500"
+        style="max-width:90px;text-align:right;font-weight:700${m.override?';border-color:var(--ember)':''}"
+        title="${m.override?'แก้เองงวดนี้ — ลบค่าแล้ว Enter = กลับอัตโนมัติ':'หักอัตโนมัติ — พิมพ์เพื่อแก้เฉพาะงวดนี้'}"
+        onchange="setMouOverride(${e.id},'${period}',this.value)">
+        ${m.override?'<span class="chip chip-amber">✎</span>':''}</td>
+      <td class="num"><b>${THB(m.collected)}</b> <span class="muted">/ ${THB(m.target)}</span></td>
+      <td class="num" style="color:${m.remain?'var(--red)':'var(--green)'};font-weight:${m.remain?700:400}">${m.remain?THB(m.remain):'–'}</td>
+      <td style="white-space:normal;min-width:180px">
+        <label style="display:inline-flex;align-items:center;gap:4px;cursor:pointer;font-weight:400;color:var(--ink);margin:0">
+          <input type="checkbox" style="width:auto" ${L.docPassport?'checked':''} onchange="updMouField(${L.id},'doc_passport',this.checked)"> 🛂 Passport</label>
+        <label style="display:inline-flex;align-items:center;gap:4px;cursor:pointer;font-weight:400;color:var(--ink);margin:0 0 0 8px">
+          <input type="checkbox" style="width:auto" ${L.docPink?'checked':''} onchange="updMouField(${L.id},'doc_pink',this.checked)"> 🪪 บัตรชมพู</label><br>
+        <label style="display:inline-flex;align-items:center;gap:4px;cursor:pointer;font-weight:400;margin:2px 0 0">
+          <input type="checkbox" style="width:auto" ${L.docComplete?'checked':''} onchange="updMouField(${L.id},'doc_complete',this.checked)">
+          <span class="chip ${L.docComplete?'chip-green':'chip-red'}">${L.docComplete?'เอกสารครบถ้วน':'เอกสารยังไม่ครบ'}</span></label></td>
+      <td>${L.returnedAt
+        ? `<span class="chip chip-gray">✓ คืนเอกสารแล้ว ${dayLabel(L.returnedAt)}</span>
+           <button class="btn btn-light btn-sm" title="แก้กลับเป็นยังไม่คืน" onclick="unmarkMouReturned(${L.id})">↺</button>`
+        : m.done
+        ? `<span class="chip chip-green">✓ ผ่อนครบแล้ว</span><br>
+           <button class="btn btn-green btn-sm" style="margin-top:4px" onclick="markMouReturned(${L.id})">📤 คืนเอกสาร</button>`
+        : `<span class="chip chip-amber">เหลืออีก ~${mouMonthsLeft(m.remain, L.monthly, L.finalMax)} งวด</span><br>
+           <span class="chip chip-red" style="margin-top:4px">🔒 ห้ามคืนเอกสาร</span>`}</td>
+      <td><div class="act"><button class="btn btn-red" title="ลบรายการ" onclick="delMouLoan(${L.id})">🗑</button></div></td>
+    </tr>`;}).join('')
+    : '<tr><td colspan="13"><div class="empty">ยังไม่มีรายการ — กด ＋ เพิ่มรายการ MOU</div></td></tr>') + '</tbody>';
+
+  /* ---- สมุดยืม-คืนเอกสาร ---- */
+  const bt = document.getElementById('borrowTable'); if(!bt) return;
+  const bfilter = document.getElementById('borrowFilter').value;
+  const blist = docBorrows.filter(b=> !bfilter || (bfilter==='out'? !b.returnDate : !!b.returnDate))
+    .sort((a,b)=> (!!a.returnDate)-(!!b.returnDate) || (a.borrowDate<b.borrowDate?1:-1));
+  bt.innerHTML = `<thead><tr>
+      <th>พนักงาน</th><th>เอกสาร</th><th>วันที่ยืม</th><th>วันที่คืน</th><th>สถานะ</th><th>หมายเหตุ</th><th></th>
+    </tr></thead><tbody>` +
+    (blist.length? blist.map(b=>{
+      const e = employees.find(x=>x.id===b.empId)||{nick:'?'};
+      const daysOut = b.returnDate? null : Math.max(0, Math.round((new Date(localYMD(new Date())+'T12:00:00') - new Date(b.borrowDate+'T12:00:00'))/86400000));
+      return `<tr${b.returnDate?' style="opacity:.65"':''}>
+      <td class="clickable" onclick="openDetail(${b.empId})"><b style="color:var(--ember-deep)">${e.nick}</b> <span class="muted">${e.full||''}</span></td>
+      <td><span class="chip chip-blue">${b.doc}</span></td>
+      <td>${dayLabel(b.borrowDate)} <span class="muted">${b.borrowDate}</span></td>
+      <td>${b.returnDate
+        ? dayLabel(b.returnDate)+' <button class="btn btn-light btn-sm" title="แก้กลับเป็นยังไม่คืน" onclick="unreturnBorrow('+b.id+')">↺</button>'
+        : `<input type="date" id="bRet_${b.id}" value="${localYMD(new Date())}" style="max-width:150px">`}</td>
+      <td>${b.returnDate
+        ? '<span class="chip chip-green">✓ คืนแล้ว</span>'
+        : '<span class="chip chip-red">ยืมออกไป '+daysOut+' วัน</span> <button class="btn btn-green btn-sm" onclick="returnBorrow('+b.id+', document.getElementById(\'bRet_'+b.id+'\').value)">📥 รับคืน</button>'}</td>
+      <td><span class="muted">${b.note||'–'}</span></td>
+      <td style="text-align:right"><button class="btn btn-red btn-sm" onclick="delBorrow(${b.id})">🗑</button></td>
+    </tr>`;}).join('')
+    : '<tr><td colspan="7"><div class="empty">ยังไม่มีการยืมเอกสาร</div></td></tr>') + '</tbody>';
 }
 
 /* ================= SHIFT SETTINGS PAGE ================= */
@@ -1837,6 +2263,8 @@ function renderDetail(){
           ${p.mustFine? `<tr><td style="color:var(--red)">－ หยุดวันห้ามหยุด (${p.mustViol.length} วัน × ${THB(Math.round(p.dRate))})</td><td class="num" style="color:var(--red)">-${THB2(p.mustFine)}</td></tr>`:''}
           ${p.singleFine? `<tr><td style="color:var(--red)">－ ปรับลืมตอกบัตร (${p.singleCount} ครั้ง × ${THB(settings.singleFine)})</td><td class="num" style="color:var(--red)">-${THB2(p.singleFine)}</td></tr>`:''}
           ${p.advs.map(a=>`<tr><td style="color:var(--red)">－ เบิกกลางเดือน ${dayLabel(a.date)} <button class="btn btn-red btn-sm" style="padding:1px 7px" onclick="delAdv(${a.id})">✕</button></td><td class="num" style="color:var(--red)">-${THB2(a.amount)}</td></tr>`).join('')}
+          ${p.mou && p.mou.loan && p.mou.ded? `<tr><td style="color:var(--red)">－ ผ่อนคืนเงินยืม MOU${p.mou.override?' (แก้เอง)':''} · ผ่อนแล้ว ${THB(p.mou.collected)}/${THB(p.mou.target)}${p.mou.done?' ✓ ครบ':''} <button class="btn btn-light btn-sm" style="padding:1px 7px" onclick="editMou(${e.id},'${period}')">✎</button></td><td class="num" style="color:var(--red)">-${THB2(p.mou.ded)}</td></tr>`
+            : p.mou && p.mou.loan && !p.mou.done? `<tr><td class="muted">เงินยืม MOU — ไม่หักงวดนี้${p.mou.override?' (แก้เอง)':''} · ผ่อนแล้ว ${THB(p.mou.collected)}/${THB(p.mou.target)} <button class="btn btn-light btn-sm" style="padding:1px 7px" onclick="editMou(${e.id},'${period}')">✎</button></td><td class="num muted">–</td></tr>`:''}
           ${p.dep && p.dep.target && p.dep.ded? `<tr><td style="color:var(--red)">－ เงินประกัน${p.dep.override?' (แก้เอง)':''} · สะสม ${THB(p.dep.collected)}/${THB(p.dep.target)}${p.dep.done?' ✓ ครบ':''} <button class="btn btn-light btn-sm" style="padding:1px 7px" onclick="editDeposit(${e.id},'${period}')">✎</button></td><td class="num" style="color:var(--red)">-${THB2(p.dep.ded)}</td></tr>`
             : p.dep && p.dep.target && !p.dep.done? `<tr><td class="muted">เงินประกัน — ไม่หักงวดนี้${p.dep.override?' (แก้เอง)':''} · สะสม ${THB(p.dep.collected)}/${THB(p.dep.target)} <button class="btn btn-light btn-sm" style="padding:1px 7px" onclick="editDeposit(${e.id},'${period}')">✎</button></td><td class="num muted">–</td></tr>`:''}
           ${p.dedu.map(a=>`<tr><td style="color:var(--red)">－ ${a.reason} <button class="btn btn-red btn-sm" style="padding:1px 7px" onclick="delAdj(${a.id})">✕</button></td><td class="num" style="color:var(--red)">-${THB2(+a.amount)}</td></tr>`).join('')}
@@ -1880,6 +2308,11 @@ function renderDetail(){
         ${p.mustViol.length? `<div class="warn-note" style="margin-top:12px;margin-bottom:0;background:var(--red-soft);border-color:#f3c4b5;color:#a03014">
           🚫 <b>หยุดวันห้ามหยุด ${p.mustViol.length} วัน</b> — หักวันละ ${THB(Math.round(p.dRate))} (ตามฐานเงินเดือน${e.type==='monthly'?' ÷ '+(settings.monthDiv||30):''}) รวม ${THB(p.mustFine)} บาท<br>
           ${p.mustViol.map(v=>dayLabel(v.day)+' ('+v.why+')').join(' · ')}
+        </div>`:''}
+        ${p.mou && p.mou.loan && !p.mou.loan.returnedAt? `<div class="warn-note" style="margin-top:12px;margin-bottom:0;${p.mou.done?'background:#e9f7ec;border-color:#c3e6cb;color:#1e6b2e':''}">
+          📄 <b>ยืมเงิน MOU ${THB(p.mou.target)} บาท</b> · ผ่อนแล้ว ${THB(p.mou.collected)} · คงเหลือ ${THB(p.mou.remain)}<br>
+          ${p.mou.done? '✅ <b>ผ่อนครบแล้ว — คืน Passport/บัตรชมพู ได้</b> (บันทึกที่หน้า 📄 เอกสาร MOU)'
+                      : '🔒 บริษัทเก็บ '+[p.mou.loan.docPassport?'Passport':'',p.mou.loan.docPink?'บัตรชมพู':''].filter(Boolean).join(' + ')+' ไว้ — คืนเมื่อหักครบเท่านั้น (เหลืออีก ~'+mouMonthsLeft(p.mou.remain, p.mou.loan.monthly, p.mou.loan.finalMax)+' งวด)'}
         </div>`:''}
         ${p.singleCount? `<div class="warn-note" style="margin-top:12px;margin-bottom:0">
           ⚠️ <b>ลืมตอกบัตร ${p.singleCount} วัน</b> — ปรับ ${THB(p.singleFine)} บาท<br>
@@ -2001,6 +2434,7 @@ function openSlip(empId, period){
   if(p.mustFine) dedRows.push([`หยุดวันห้ามหยุด ${p.mustViol.map(v=>dayLabel(v.day)).join(', ')} (${p.mustViol.length} วัน × ${THB(Math.round(p.dRate))})`, p.mustFine]);
   p.advs.forEach(a=>dedRows.push([`เบิกล่วงหน้า ${dayLabel(a.date)}${a.note?' — '+a.note:''}`, +a.amount]));
   if(p.dep && p.dep.ded) dedRows.push([`เงินประกัน (สะสม ${THB(p.dep.collected)} / ${THB(p.dep.target)}${p.dep.done?' — ครบแล้ว':''})`, p.dep.ded]);
+  if(p.mou && p.mou.ded) dedRows.push([`ผ่อนคืนเงินยืม MOU (ผ่อนแล้ว ${THB(p.mou.collected)} / ${THB(p.mou.target)}${p.mou.done?' — ครบแล้ว':''})`, p.mou.ded]);
   p.dedu.forEach(a=>dedRows.push([a.reason, +a.amount]));
 
   document.getElementById('slipBody').innerHTML = `
@@ -2644,7 +3078,7 @@ function renderPayroll(){
     (ff==='single' && p.singleCount>0) || (ff==='late' && p.missMin>0) ||
     (ff==='adv' && p.advSum>0) || (ff==='bonus' && (p.holiBonus>0||p.noOffBonus>0)) ||
     (ff==='cross' && p.crossDays.length>0) || (ff==='must' && p.mustViol.length>0) ||
-    (ff==='dep' && p.dep.ded>0);
+    (ff==='dep' && p.dep.ded>0) || (ff==='mou' && p.mou.ded>0);
   const list = employees
     .filter(e=>(e.active || empShiftsInPeriod(e,period).length) &&
                (!bf || e.branch===bf) && (!df || e.dept===df) && (!pf || e.position===pf) && (!mf || e.mode===mf) && empMatch(e, q))
@@ -2697,7 +3131,7 @@ function exportPayrollXlsx(){
   if(!period) return toast('❌ ยังไม่มีข้อมูล');
   const bf2 = (document.getElementById('payBranch')||{}).value||'';
   const df2 = (document.getElementById('payDept')||{}).value||'';
-  const rows = [['ชื่อเล่น','ชื่อ-นามสกุล','สาขา','แผนก','ตำแหน่ง','รูปแบบ','ประเภท','อัตรา','วันทำงาน','ชั่วโมง','สาย(ครั้ง)','สาย(นาที)','ออกก่อน(นาที)','ชม.ขาด(นาที)','ชม.เต็ม(รายชั่วโมง)','ไม่หยุด(วัน)','เบี้ยไม่หยุด','วันหยุดพิเศษ(ได้)','เบี้ยวันหยุด','ข้ามสาขา(วัน)','สาขาที่ทำงาน','ลืมตอก(ครั้ง)','ลืมตอก(วันที่)','หยุดวันห้ามหยุด','เบิกกลางเดือน','ประกันงวดนี้','ประกันสะสม','ประกันคงเหลือ','ค่าแรง','เพิ่ม','หัก','สุทธิ']];
+  const rows = [['ชื่อเล่น','ชื่อ-นามสกุล','สาขา','แผนก','ตำแหน่ง','รูปแบบ','ประเภท','อัตรา','วันทำงาน','ชั่วโมง','สาย(ครั้ง)','สาย(นาที)','ออกก่อน(นาที)','ชม.ขาด(นาที)','ชม.เต็ม(รายชั่วโมง)','ไม่หยุด(วัน)','เบี้ยไม่หยุด','วันหยุดพิเศษ(ได้)','เบี้ยวันหยุด','ข้ามสาขา(วัน)','สาขาที่ทำงาน','ลืมตอก(ครั้ง)','ลืมตอก(วันที่)','หยุดวันห้ามหยุด','เบิกกลางเดือน','ประกันงวดนี้','ประกันสะสม','ประกันคงเหลือ','MOU งวดนี้','MOU คงเหลือ','ค่าแรง','เพิ่ม','หัก','สุทธิ']];
   employees.filter(e=>(e.active || empShiftsInPeriod(e,period).length) &&
                       (!bf2||e.branch===bf2) && (!df2||e.dept===df2)).forEach(e=>{
     const p = calcPay(e,period);
@@ -2710,10 +3144,10 @@ function exportPayrollXlsx(){
       p.crossDays.length||'', Object.entries(p.byBranch).map(([b,n])=>((BR[b]||{}).t||b)+':'+n).join(' '),
       p.singleCount, p.singleDays.map(s=>dayLabel(s.day)+' '+singleLabel(s.singleKind)).join(', '),
       p.mustViol.length? p.mustViol.map(v=>dayLabel(v.day)).join(', ')+' (-'+THB(p.mustFine)+')' : '',
-      p.advSum, p.dep.ded||'', p.dep.collected||'', p.dep.remain||'', p.base, p.addSum, p.deduSum, p.net]);
+      p.advSum, p.dep.ded||'', p.dep.collected||'', p.dep.remain||'', p.mou.ded||'', p.mou.remain||'', p.base, p.addSum, p.deduSum, p.net]);
   });
   const ws = XLSX.utils.aoa_to_sheet(rows);
-  ws['!cols'] = [{wch:10},{wch:22},{wch:10},{wch:14},{wch:14},{wch:13},{wch:9},{wch:8},{wch:9},{wch:8},{wch:9},{wch:9},{wch:11},{wch:12},{wch:11},{wch:11},{wch:13},{wch:14},{wch:11},{wch:12},{wch:22},{wch:11},{wch:30},{wch:24},{wch:12},{wch:11},{wch:11},{wch:12},{wch:10},{wch:8},{wch:8},{wch:10}];
+  ws['!cols'] = [{wch:10},{wch:22},{wch:10},{wch:14},{wch:14},{wch:13},{wch:9},{wch:8},{wch:9},{wch:8},{wch:9},{wch:9},{wch:11},{wch:12},{wch:11},{wch:11},{wch:13},{wch:14},{wch:11},{wch:12},{wch:22},{wch:11},{wch:30},{wch:24},{wch:12},{wch:11},{wch:11},{wch:12},{wch:11},{wch:12},{wch:10},{wch:8},{wch:8},{wch:10}];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Payroll '+period);
   XLSX.writeFile(wb, 'payroll_'+period+'.xlsx');
@@ -2798,6 +3232,18 @@ function startRealtime(){
     .on('postgres_changes', { event:'*', schema:'public', table:'deposit_entries' }, async ()=>{
       try{ const { data } = await db.from('deposit_entries').select('*');
         if(data){ depositEntries = data.map(fromDbDep); rtQueue++; scheduleRtRefresh(); } }catch(_){}
+    })
+    .on('postgres_changes', { event:'*', schema:'public', table:'mou_loans' }, async ()=>{
+      try{ const { data } = await db.from('mou_loans').select('*');
+        if(data){ mouLoans = data.map(fromDbMou); rtQueue++; scheduleRtRefresh(); } }catch(_){}
+    })
+    .on('postgres_changes', { event:'*', schema:'public', table:'mou_entries' }, async ()=>{
+      try{ const { data } = await db.from('mou_entries').select('*');
+        if(data){ mouEntries = data.map(fromDbMouE); rtQueue++; scheduleRtRefresh(); } }catch(_){}
+    })
+    .on('postgres_changes', { event:'*', schema:'public', table:'doc_borrows' }, async ()=>{
+      try{ const { data } = await db.from('doc_borrows').select('*').order('borrow_date',{ascending:false});
+        if(data){ docBorrows = data.map(fromDbBorrow); rtQueue++; scheduleRtRefresh(); } }catch(_){}
     })
     .subscribe((status)=>{
       if(status === 'SUBSCRIBED') conn(true, 'sync สด · '+employees.length+' คน');
