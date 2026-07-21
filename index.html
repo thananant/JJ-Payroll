@@ -63,6 +63,8 @@ aside nav button:hover:not(.active){color:var(--brand-deep);background:var(--emb
 main{max-width:1240px;margin:0 auto;padding:22px}
 main:has(#page-cal.active){max-width:none}   /* หน้าปฏิทินใช้เต็มความกว้างจอ */
 main:has(#page-today.active){max-width:none} /* หน้าวันนี้ด้วย ข้อมูลเยอะ */
+main:has(#page-mou.active){max-width:none}   /* หน้า MOU ตารางกว้าง */
+main:has(#page-dep.active){max-width:none}   /* หน้าเงินประกันด้วย */
 .page{display:none}.page.active{display:block}
 
 .card{background:var(--panel);border:1px solid #f3ede5;border-radius:var(--radius);padding:22px;margin-bottom:18px;box-shadow:var(--shadow)}
@@ -1017,7 +1019,7 @@ function go(p){
   document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));
   document.getElementById('page-'+p).classList.add('active');
   document.querySelectorAll('aside nav button').forEach(b=>b.classList.toggle('active',b.dataset.page===p));
-  document.querySelector('main').style.maxWidth = (p==='cal'||p==='today') ? 'none' : '';
+  document.querySelector('main').style.maxWidth = (p==='cal'||p==='today'||p==='mou'||p==='dep') ? 'none' : '';
   if(p==='emp')renderEmp(); if(p==='payroll')renderPayroll(); if(p==='cal')renderCalendar(); if(p==='adv')renderAdv(); if(p==='dep')renderDeposit(); if(p==='mou')renderMou(); if(p==='holi')renderHoli();
   if(p==='detail'){renderDetailSelector();renderDetail();} if(p==='shift')renderShifts(); if(p==='today')renderToday(); if(p==='settings')renderOrg();
   window.scrollTo(0,0);
