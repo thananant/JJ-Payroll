@@ -344,7 +344,7 @@ tr.grp-dept td{background:#faf7f1;font-size:11.5px;font-weight:600;color:var(--i
 <div class="page" id="page-shift">
   <div class="card">
     <h2 class="font-display" style="font-size:18px;margin-bottom:6px">กะการทำงาน</h2>
-    <p class="muted" style="margin-bottom:14px">ระบบจะเดากะให้อัตโนมัติจากเวลา<b>เลิกงาน</b> (ตอกออกใกล้เวลาเลิกกะไหนสุด = กะนั้น) หรือจะล็อกกะให้พนักงานรายคนก็ได้ในหน้าพนักงาน</p>
+    <p class="muted" style="margin-bottom:14px">ระบบจะเดากะให้อัตโนมัติจากเวลา<b>เข้า+เลิกงาน</b>ประกอบกัน (น้ำหนักเวลาเลิกงานมากกว่า) หรือจะล็อกกะให้พนักงานรายคนก็ได้ในหน้าพนักงาน · กะที่ระบุ "เฉพาะแผนก" จะเทียบกับทั้งชื่อแผนกและตำแหน่ง เช่น ล้างจาน</p>
     <div class="tbl-wrap"><table id="shiftTable"></table></div>
     <button class="btn btn-ember btn-sm" style="margin-top:12px" onclick="addShift()">＋ เพิ่มกะ</button>
     <div class="warn-note" style="margin-top:16px;margin-bottom:0">
@@ -430,7 +430,7 @@ tr.grp-dept td{background:#faf7f1;font-size:11.5px;font-weight:600;color:var(--i
           <option value="0.3">30%</option><option value="0.5" selected>50% (ครึ่งหนึ่ง)</option><option value="0.7">70%</option>
         </select></div>
     </div>
-    <p class="muted" style="margin-top:6px">ระบบใช้ค่าที่<b>น้อยกว่า</b>ระหว่างสองอันนี้เป็นเพดานเบิก</p>
+    <p class="muted" style="margin-top:6px">ระบบใช้ค่าที่<b>น้อยกว่า</b>ระหว่างสองอันนี้เป็นเพดานเบิก · พิมพ์เกินเพดานได้ ระบบจะเตือนและให้ยืนยันก่อนบันทึก</p>
 
     <div class="section-title">วันห้ามหยุด (ขาดแล้วหักเงิน)</div>
     <div class="grid g2">
@@ -440,7 +440,7 @@ tr.grp-dept td{background:#faf7f1;font-size:11.5px;font-weight:600;color:var(--i
         <p style="margin-top:10px"><b>ตามฐานเงินเดือนรายคน</b><br>
         <span class="muted">รายเดือน = เงินเดือน ÷ 30 (เช่น 12,000 → 400/วัน)<br>รายวัน = ค่าแรงรายวันของคนนั้น</span></p></div>
     </div>
-    <p class="muted" style="margin:6px 0 14px">วันหยุดพิเศษ (หน้า 🎌) นับเป็นวันห้ามหยุดด้วยเสมอ · ขาดวันเหล่านี้ = หักตามค่าปรับ · ยกเว้นอัตโนมัติ: ออฟฟิศ (หยุดประจำสัปดาห์) และรายชั่วโมง · ยกเว้นรายคนได้ในฟอร์มพนักงาน</p>
+    <p class="muted" style="margin:6px 0 14px">วันหยุดพิเศษ (หน้า 🎌) นับเป็นวันห้ามหยุดด้วยเสมอ · ขาดวันเหล่านี้ = หักตามค่าปรับ · ยกเว้นอัตโนมัติ: สาขาออฟฟิศ, Manager/ผู้จัดการ, คนมีวันหยุดประจำสัปดาห์ และรายชั่วโมง · ยกเว้นรายคนได้ในฟอร์มพนักงาน</p>
 
     <div class="section-title">ค่าแรงต่อวันของพนักงานรายเดือน</div>
     <div class="grid g2">
@@ -586,7 +586,7 @@ tr.grp-dept td{background:#faf7f1;font-size:11.5px;font-weight:600;color:var(--i
           <input type="checkbox" id="fMustWorkEx" style="width:auto">
           <span><b>ยกเว้น</b>กฎห้ามหยุด ศ-ส-อา/วันหยุดพิเศษ (ปกติขาดวันพวกนี้โดนหัก)</span>
         </label>
-        <p class="muted" style="margin-top:4px">คนมีวันหยุดประจำสัปดาห์ (ออฟฟิศ) และรายชั่วโมง ยกเว้นให้อัตโนมัติอยู่แล้ว</p>
+        <p class="muted" style="margin-top:4px">สาขาออฟฟิศ, Manager/ผู้จัดการ, คนมีวันหยุดประจำสัปดาห์ และรายชั่วโมง ยกเว้นให้อัตโนมัติอยู่แล้ว</p>
       </div>
     </div>
 
@@ -729,9 +729,14 @@ const fromDbShift = r => ({ id:r.id, name:r.name, start:String(r.start_time).sli
   deptOnly:(r.dept_only||'').trim() });
 const toDbShift = s => ({ name:s.name, start_time:s.start, end_time:s.end,
   in_grace:s.inGrace, out_grace:s.outGrace, sort_order:s.sort||0, dept_only:s.deptOnly||'' });
-/* กะที่คนนี้ใช้ได้: กะจำกัดแผนก ใช้เฉพาะคนที่ชื่อแผนกมีคำนั้น (RD-ล้างจาน ก็เข้า) */
+/* กะที่คนนี้ใช้ได้: เทียบเงื่อนไข "เฉพาะแผนก" กับทั้งแผนกและตำแหน่ง (เช่น ตำแหน่งล้างจานใต้แผนก Kitchen)
+   และกะเฉพาะกลุ่มจะ "ทับ" กะหลักชื่อเดียวกัน — คนล้างจานได้ "กะเช้า (ล้างจาน)" -> ตัด "กะเช้า" ปกติออก */
 const shiftsFor = emp => {
-  const list = shiftDefs.filter(sh => !sh.deptOnly || (emp && (emp.dept||'').includes(sh.deptOnly)));
+  const hay = emp ? (emp.dept||'')+' '+(emp.position||'') : '';
+  let list = shiftDefs.filter(sh => !sh.deptOnly || hay.includes(sh.deptOnly));
+  if(!list.length) list = shiftDefs;
+  const owned = list.filter(sh => sh.deptOnly && hay.includes(sh.deptOnly));
+  if(owned.length) list = list.filter(sh => sh.deptOnly || !owned.some(o => o.name.startsWith(sh.name)));
   return list.length ? list : shiftDefs;
 };
 const fromDbAdj = r => ({ id:r.id, empId:r.employee_id, kind:r.kind, reason:r.reason,
@@ -991,15 +996,16 @@ function shiftWindow(day, sh){
   return {s,e};
 }
 function detectShift(day, ts, emp){
-  // ยึดเวลา "ออก" เป็นหลัก: ตอกครั้งสุดท้ายใกล้เวลาเลิกกะไหนสุด = กะนั้น
-  // (เวลาออกแยกกะได้ชัดกว่าเวลาเข้า เช่น เข้า 17:30 เป็นได้ทั้งกะกลาง/เย็น แต่ออก 02:40 = เย็นแน่นอน)
+  // ดูทั้งเวลาเข้าและออกประกอบกัน (ถ่วงน้ำหนักเวลาออก ×2 เพราะเวลาออกแยกกะได้ชัดกว่า
+  // เช่น เข้า 17:30 เป็นได้ทั้งกะกลาง/เย็น แต่ออก 02:40 = เย็นแน่นอน)
+  // ทำให้เคสล้างจาน 11:00-20:00 vs กะเช้า 10:00-19:00 แยกออกอัตโนมัติแม้ออกก่อนเวลา
   // ตอกครั้งเดียว: เทียบทั้งเวลาเริ่มและเลิก เอาที่ใกล้สุด (ลืมเข้าหรือลืมออกก็จับถูก)
   const lastP = ts[ts.length-1], firstP = ts[0];
   const cands = shiftsFor(arguments[2]);
   let best=cands[0], bd=Infinity;
   for(const sh of cands){
     const {s,e} = shiftWindow(day, sh);
-    const d = ts.length>1 ? Math.abs(lastP - e)
+    const d = ts.length>1 ? Math.abs(firstP - s) + 2*Math.abs(lastP - e)
                           : Math.min(Math.abs(firstP - s), Math.abs(firstP - e));
     if(d < bd){ bd=d; best=sh; }
   }
@@ -1196,10 +1202,14 @@ function calcPay(emp, period){
   const wkOffWorked = emp.offWd ? ss.filter(s=>isOffWd(emp, s.day)).map(s=>s.day) : [];
 
   /* ---- กฎห้ามหยุด ศ ส อา + วันหยุดพิเศษ ----
-     ยกเว้นอัตโนมัติ: มีวันหยุดประจำสัปดาห์ (ออฟฟิศ) / รายชั่วโมง / ติ๊กยกเว้นรายคน / ยังไม่มีวันทำงานในงวดเลย
+     ยกเว้นอัตโนมัติ: สาขาออฟฟิศ / Manager-ผู้จัดการ / แผนกออฟฟิศ / มีวันหยุดประจำสัปดาห์ / รายชั่วโมง
+     / ติ๊กยกเว้นรายคน / ยังไม่มีวันทำงานในงวดเลย
      นับเฉพาะช่วงตั้งแต่วันแรกที่เคยสแกน (คนเข้าใหม่ไม่โดนย้อนหลัง) ถึงวันนี้ (อนาคตยังไม่นับ) */
   const mustViol = [];
-  if(!emp.mustWorkExempt && !emp.offWd && emp.mode !== 'hourly' && days > 0){
+  const autoMustExempt = emp.branch==='OFFICE' ||
+        /manager|ผู้จัดการ/i.test((emp.dept||'')+' '+(emp.position||'')) ||
+        (emp.dept||'').includes('ออฟฟิศ');
+  if(!emp.mustWorkExempt && !autoMustExempt && !emp.offWd && emp.mode !== 'hourly' && days > 0){
     const wdSet = new Set((settings.mustWorkDays||'5,6,0').split(',').map(Number));
     const firstEver = ((shifts[emp.code]||[])[0]||{}).day || '9999';
     const todayS = localYMD(new Date());
@@ -1271,7 +1281,7 @@ function renderShifts(){
       <td><input type="time" value="${sh.end}" onchange="updShift(${i},'end',this.value)"></td>
       <td class="num"><input type="number" value="${sh.inGrace}" style="max-width:80px" onchange="updShift(${i},'inGrace',+this.value)"></td>
       <td class="num"><input type="number" value="${sh.outGrace}" style="max-width:80px" onchange="updShift(${i},'outGrace',+this.value)"></td>
-      <td><input value="${sh.deptOnly||''}" placeholder="ทุกแผนก" style="max-width:120px" title="ใส่คำในชื่อแผนก เช่น ล้างจาน = ใช้กับแผนกล้างจานเท่านั้น" onchange="updShift(${i},'deptOnly',this.value.trim())"></td>
+      <td><input value="${sh.deptOnly||''}" placeholder="ทุกแผนก" style="max-width:120px" title="ใส่คำในชื่อแผนกหรือตำแหน่ง เช่น ล้างจาน = ใช้กับคนตำแหน่งล้างจานเท่านั้น" onchange="updShift(${i},'deptOnly',this.value.trim())"></td>
       <td><span class="chip chip-gray">${(dur/60).toFixed(1)} ชม.</span></td>
       <td style="text-align:right"><button class="btn btn-red btn-sm" onclick="delShift(${sh.id})">ลบ</button></td>
     </tr>`;
@@ -1460,7 +1470,7 @@ function openEmpForm(id){
   document.getElementById('fMode').value = e? (e.mode||'shift') : 'shift';
   document.getElementById('fShift').value = (e && e.shiftId)? e.shiftId : '';
   document.getElementById('fTarget').value = e? (e.target||10) : 10;
-  document.getElementById('fActive').value = e? String(e.active) : '1';
+  document.getElementById('fActive').value = e? String(+e.active) : '1';
   // สิทธิ์วันหยุด
   const wd = e && e.offWd ? e.offWd.split(',') : [];
   document.getElementById('fOffWd').innerHTML = WD_TH.map((w,i)=>
@@ -1945,7 +1955,7 @@ function renderAdv(){
   document.getElementById('advInfo').innerHTML =
     `รอบ <b>${periodRangeLabel(period)}</b> · เบิกได้วันที่ <b>${dayLabel(r.adv)}</b> ·
      เพดาน <b>${THB(settings.advMax)} บ.</b> หรือ <b>${Math.round(settings.advRatio*100)}%</b> ของที่ทำมา แล้วแต่อันไหนน้อยกว่า ·
-     หักคืนตอนจ่าย <b>${dayLabel(r.pay)}</b>`;
+     หักคืนตอนจ่าย <b>${dayLabel(r.pay)}</b> · พิมพ์เกินเพดานได้ ระบบจะเตือนและให้ยืนยันก่อนบันทึก`;
 
   const list = employees.filter(e=>e.active && (!bf||e.branch===bf) &&
       (!q || (e.nick+' '+e.full+' '+e.dept).toLowerCase().includes(q)))
@@ -1975,16 +1985,14 @@ function renderAdv(){
     <td class="num"><b>${THB(q.cap)}</b>${q.cap===settings.advMax && q.byRatio>settings.advMax? ' <span class="chip chip-gray">เพดาน</span>':''}</td>
     <td class="num" style="color:${q.taken?'var(--red)':'inherit'}">${q.taken?THB(q.taken):'–'}</td>
     <td class="num">
-      ${q.left>0
-        ? `<div style="display:flex;gap:5px;align-items:center;justify-content:flex-end">
-            <input type="number" id="advQ_${e.id}" placeholder="สูงสุด ${THB(q.left)}"
-              min="1" max="${q.left}" step="1"
-              style="max-width:110px;text-align:right;font-weight:600"
-              oninput="if(+this.value>${q.left}){this.value=${q.left};toast('⚠️ เพดานของ${e.nick} = ${THB(q.left)} บาท')}"
-              onkeydown="if(event.key==='Enter')quickAdv(${e.id},'${period}')">
-            <button class="btn btn-green btn-sm" title="บันทึก (หรือกด Enter)" onclick="quickAdv(${e.id},'${period}')">💾</button>
-          </div>`
-        : `<span class="chip chip-gray">เต็มสิทธิ์</span>`}
+      <div style="display:flex;gap:5px;align-items:center;justify-content:flex-end">
+        <input type="number" id="advQ_${e.id}" placeholder="สูงสุด ${THB(q.left)}"
+          min="1" step="1"
+          style="max-width:110px;text-align:right;font-weight:600"
+          oninput="if(+this.value>${q.left})toast('⚠️ เกินเพดานของ${e.nick} (สูงสุด ${THB(q.left)} บาท)')"
+          onkeydown="if(event.key==='Enter')quickAdv(${e.id},'${period}')">
+        <button class="btn btn-green btn-sm" title="บันทึก (หรือกด Enter)" onclick="quickAdv(${e.id},'${period}')">💾</button>
+      </div>
     </td>
     <td><div class="act">
       ${q.taken>0? `<button class="btn btn-light" title="ดู/แก้รายการที่เบิกแล้ว" onclick="openAdvForm(${e.id},'${period}')">✎</button>`:''}
@@ -2000,8 +2008,8 @@ function openAdvForm(empId, period){
   document.getElementById('advTitle').textContent = '💵 เบิกกลางเดือน — ' + e.nick;
   document.getElementById('advQuotaInfo').innerHTML =
     `ทำมา <b>${q.days} วัน</b> = ${THB(q.earned)} บ. · ${Math.round(settings.advRatio*100)}% = ${THB(q.byRatio)} บ. ·
-     เพดาน ${THB(settings.advMax)} บ.<br>➜ <b style="color:var(--green)">เบิกเพิ่มได้อีก ${THB(q.left)} บาท</b>
-     ${q.taken? ' (เบิกไปแล้ว '+THB(q.taken)+')':''}`;
+     เพดาน ${THB(settings.advMax)} บ.<br>➜ <b style="color:var(--green)">เบิกตามสิทธิ์ได้อีก ${THB(q.left)} บาท</b>
+     ${q.taken? ' (เบิกไปแล้ว '+THB(q.taken)+')':''} · ใส่เกินได้ ระบบจะให้ยืนยัน`;
 
   // รายการที่เบิกไปแล้วในงวดนี้ — แก้จำนวน/หมายเหตุ หรือลบได้เลย
   const list = advances.filter(a=>a.empId===empId && a.period===period)
@@ -2020,8 +2028,8 @@ function openAdvForm(empId, period){
       </td></tr>`).join('')}</tbody></table></div>`;
 
   const inp = document.getElementById('advAmount');
-  inp.value = q.left>0? q.left : ''; inp.max = q.left;
-  inp.disabled = q.left<=0;
+  inp.value = q.left>0? q.left : '';
+  inp.disabled = false;
   document.getElementById('advDate').value = periodRange(period).adv;
   document.getElementById('advNote').value = '';
   document.getElementById('advBg').classList.add('show');
@@ -2032,7 +2040,7 @@ async function quickAdv(empId, period){
   const e = employees.find(x=>x.id===empId);
   if(!amount || amount<=0) return toast('❌ ใส่จำนวนเงินก่อน');
   const q = advQuota(e, period);
-  if(amount > q.left) return toast('❌ เกินสิทธิ์ — '+e.nick+' เบิกได้อีกแค่ '+THB(q.left)+' บาท');
+  if(amount > q.left && !confirm('⚠️ เกินเพดานสิทธิ์ของ '+e.nick+' ('+THB(q.left)+' บาท)\nยืนยันบันทึกเบิก '+THB(amount)+' บาท?')) return;
   const { data, error } = await db.from('advances').insert({
     employee_id:empId, period, amount,
     taken_date: localYMD(new Date()) <= periodRange(period).to ? localYMD(new Date()) : periodRange(period).adv,
@@ -2051,7 +2059,7 @@ async function updateAdv(id){
   const e = employees.find(x=>x.id===a.empId);
   const q = advQuota(e, a.period);
   const maxAllow = q.left + +a.amount;              // สิทธิ์คงเหลือ + ก้อนเดิมของรายการนี้
-  if(amount > maxAllow) return toast('❌ เกินสิทธิ์ — รายการนี้แก้ได้ไม่เกิน '+THB(maxAllow)+' บาท');
+  if(amount > maxAllow && !confirm('⚠️ เกินเพดานสิทธิ์ (ตามสิทธิ์ไม่เกิน '+THB(maxAllow)+' บาท)\nยืนยันแก้เป็น '+THB(amount)+' บาท?')) return;
   const { error } = await db.from('advances').update({ amount, note }).eq('id', id);
   if(error) return dbErr(error,'แก้การเบิก');
   a.amount = amount; a.note = note;
@@ -2066,7 +2074,7 @@ async function saveAdv(){
   const e = employees.find(x=>x.id===empId);
   const q = advQuota(e, period);
   if(!amount || amount<=0) return toast('❌ กรุณาใส่จำนวนเงิน');
-  if(amount > q.left) return toast('❌ เกินสิทธิ์ — เบิกได้อีกแค่ '+THB(q.left)+' บาท');
+  if(amount > q.left && !confirm('⚠️ เกินเพดานสิทธิ์ ('+THB(q.left)+' บาท)\nยืนยันบันทึกเบิก '+THB(amount)+' บาท?')) return;
   const { data, error } = await db.from('advances').insert({
     employee_id:empId, period, amount,
     taken_date: document.getElementById('advDate').value || periodRange(period).adv,
@@ -2654,6 +2662,7 @@ function updPeriodHint(){
 
 /* ================= BOOT ================= */
 loadAll().then(()=>{ startRealtime(); updPeriodHint(); renderOrg(); renderMwDays(); });
+
 </script>
 </body>
 </html>
