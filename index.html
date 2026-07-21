@@ -201,6 +201,7 @@ tr.grp-dept td{background:#faf7f1;font-size:11.5px;font-weight:600;color:var(--i
     <button data-page="payroll" onclick="go('payroll')">💰 สรุปเงินเดือน</button>
     <button data-page="cal" onclick="go('cal')">📅 ปฏิทินเข้างาน</button>
     <button data-page="adv" onclick="go('adv')">💵 เบิกกลางเดือน</button>
+    <button data-page="dep" onclick="go('dep')">🛡️ เงินประกัน</button>
     <button data-page="shift" onclick="go('shift')">🕐 กะการทำงาน</button>
     <button data-page="holi" onclick="go('holi')">🎌 วันหยุดพิเศษ</button>
     <button data-page="settings" onclick="go('settings')">⚙️ ตั้งค่า</button>
@@ -338,6 +339,26 @@ tr.grp-dept td{background:#faf7f1;font-size:11.5px;font-weight:600;color:var(--i
   <div class="muted" id="payPeriodInfo" style="margin-bottom:10px"></div>
   <div class="stats" id="payStats"></div>
   <div class="tbl-wrap"><table id="payTable"></table></div>
+</div>
+
+<!-- ============ DEPOSIT ============ -->
+<div class="page" id="page-dep">
+  <div class="toolbar">
+    <label style="margin:0;display:flex;align-items:center;gap:8px;font-size:14px">งวด:
+      <select id="depPeriodSel" onchange="renderDeposit()" style="width:auto;min-width:200px"></select>
+    </label>
+    <select id="depBranch" onchange="renderDeposit()" style="width:auto;min-width:150px">
+      <option value="">ทุกสาขา</option><option value="JJLP">ลาดพร้าว</option>
+      <option value="JJRD">รัชดา</option><option value="OFFICE">ออฟฟิศ</option>
+    </select>
+    <select id="depStatus" onchange="renderDeposit()" style="width:auto;min-width:140px">
+      <option value="">ทุกสถานะ</option><option value="pending">ยังไม่ครบ</option><option value="done">ครบแล้ว</option>
+    </select>
+    <input type="search" id="depSearch" placeholder="ค้นหาชื่อ…" oninput="renderDeposit()" style="max-width:200px">
+  </div>
+  <div class="muted" id="depInfo" style="margin-bottom:10px"></div>
+  <div class="stats" id="depStats"></div>
+  <div class="tbl-wrap"><table id="depTable"></table></div>
 </div>
 
 <!-- ============ SHIFTS ============ -->
@@ -697,6 +718,8 @@ let settings = { cutoff:6, defaultWage:400, minFine:0, lateFine:0, loadMonths:8,
                  hourlyStart:'18:00', hourlyEnd:'00:00', hourlyMax:6,
                  mustWorkDays:'5,6,0', mustWorkFine:400 };
 let advances = [];
+let depositEntries = [];   // เงินประกัน: override รายงวด {id, empId, period, amount}
+let depReady = false;      // true เมื่อรัน jj_deposit.sql แล้ว
 let holidays = {};   // 'YYYY-MM-DD' -> {name, mult}
 let devBranch = {};  // device_sn -> branch
 let orgPos = [];     // โครงสร้าง {id, dept, name} จากตาราง org_positions
@@ -715,13 +738,17 @@ const fromDbEmp = r => ({ id:r.id, code:r.code, nick:r.nick, full:r.full_name||'
   offCount:+(r.off_count||0), offWd:r.off_weekdays||'', holidayPay:r.holiday_pay!==false,
   hourlyWindow:r.hourly_window!==false, mustWorkExempt:r.must_work_exempt===true,
   type:r.wage_type||'daily', rate:+r.rate, mode:r.work_mode||'shift', shiftId:r.shift_id,
-  target:+(r.target_hours||10), active:!!r.active });
+  target:+(r.target_hours||10), active:!!r.active,
+  depTarget:+(r.deposit_target??5000), depMonthly:+(r.deposit_monthly??500),
+  depOpen:+(r.deposit_opening??0), depOn:r.deposit_on!==false });
 const toDbEmp = e => ({ code:e.code, nick:e.nick, full_name:e.full||'', dept:e.dept||'',
   branch:e.branch||'', position:e.position||'', photo_url:e.photo||null,
   off_count:e.offCount||0, off_weekdays:e.offWd||'', holiday_pay:!!e.holidayPay,
   hourly_window:e.hourlyWindow!==false, must_work_exempt:!!e.mustWorkExempt,
   wage_type:e.type, rate:e.rate, work_mode:e.mode, shift_id:e.shiftId,
-  target_hours:e.target, active:!!e.active });
+  target_hours:e.target, active:!!e.active,
+  ...(depReady ? { deposit_target:e.depTarget??5000, deposit_monthly:e.depMonthly??500,
+                   deposit_opening:e.depOpen??0, deposit_on:e.depOn!==false } : {}) });
 const fromDbAdv = r => ({ id:r.id, empId:r.employee_id, period:r.period, amount:+r.amount,
   date:r.taken_date, note:r.note||'' });
 const fromDbShift = r => ({ id:r.id, name:r.name, start:String(r.start_time).slice(0,5),
@@ -739,6 +766,7 @@ const shiftsFor = emp => {
   if(owned.length) list = list.filter(sh => sh.deptOnly || !owned.some(o => o.name.startsWith(sh.name)));
   return list.length ? list : shiftDefs;
 };
+const fromDbDep = r => ({ id:r.id, empId:r.employee_id, period:r.period, amount:+r.amount, note:r.note||'' });
 const fromDbAdj = r => ({ id:r.id, empId:r.employee_id, kind:r.kind, reason:r.reason,
   amount:+r.amount, period:r.period });
 
@@ -767,6 +795,9 @@ async function loadAll(){
     holidays = {}; (hd.data||[]).forEach(h=>holidays[h.day] = { name:h.name||'วันหยุดพิเศษ', mult:+h.multiplier, id:h.id });
     try{ const og = await db.from('org_positions').select('*').order('dept').order('sort');
          if(!og.error) orgPos = og.data||[]; }catch(_){ /* ยังไม่รัน phase14 ก็ใช้งานส่วนอื่นได้ */ }
+    try{ const de = await db.from('deposit_entries').select('*');
+         if(!de.error){ depositEntries = (de.data||[]).map(fromDbDep); depReady = true; }
+    }catch(_){ depReady = false; /* ยังไม่รัน jj_deposit.sql */ }
     devBranch = {}; (dv.data||[]).forEach(d=>{ if(d.branch) devBranch[d.sn] = d.branch; });
 
     shiftDefs = (sh.data||[]).map(fromDbShift);
@@ -862,12 +893,12 @@ function go(p){
   document.getElementById('page-'+p).classList.add('active');
   document.querySelectorAll('aside nav button').forEach(b=>b.classList.toggle('active',b.dataset.page===p));
   document.querySelector('main').style.maxWidth = (p==='cal'||p==='today') ? 'none' : '';
-  if(p==='emp')renderEmp(); if(p==='payroll')renderPayroll(); if(p==='cal')renderCalendar(); if(p==='adv')renderAdv(); if(p==='holi')renderHoli();
+  if(p==='emp')renderEmp(); if(p==='payroll')renderPayroll(); if(p==='cal')renderCalendar(); if(p==='adv')renderAdv(); if(p==='dep')renderDeposit(); if(p==='holi')renderHoli();
   if(p==='detail'){renderDetailSelector();renderDetail();} if(p==='shift')renderShifts(); if(p==='today')renderToday(); if(p==='settings')renderOrg();
   window.scrollTo(0,0);
 }
 function closeModal(id){ document.getElementById(id).classList.remove('show'); }
-function renderAll(){ renderEmp(); renderPayroll(); renderDetailSelector(); renderDetail(); if(typeof renderAdv==='function') renderAdv(); if(typeof renderToday==='function') renderToday(); }
+function renderAll(){ renderEmp(); renderPayroll(); renderDetailSelector(); renderDetail(); if(typeof renderAdv==='function') renderAdv(); if(typeof renderDeposit==='function') renderDeposit(); if(typeof renderToday==='function') renderToday(); }
 
 /* ================= IMPORT ================= */
 const drop = document.getElementById('drop');
@@ -1135,7 +1166,7 @@ function allPeriods(){
 }
 function refreshPeriodSelectors(){
   const ps = allPeriods();
-  for(const id of ['periodSel','adjPeriod','detailPeriodSel','calPeriodSel','advPeriodSel']){
+  for(const id of ['periodSel','adjPeriod','detailPeriodSel','calPeriodSel','advPeriodSel','depPeriodSel']){
     const sel = document.getElementById(id); const cur = sel.value;
     sel.innerHTML = ps.map(p=>`<option value="${p}">${periodLabel(p)}</option>`).join('') || '<option value="">– ยังไม่มีข้อมูล –</option>';
     if(ps.includes(cur)) sel.value = cur;
@@ -1242,11 +1273,12 @@ function calcPay(emp, period){
              : days * +emp.rate;
   const advs   = advances.filter(a=>a.empId===emp.id && a.period===period);
   const advSum = advs.reduce((a,x)=>a+ +x.amount,0);
-  const deduSum = dedu.reduce((a,x)=>a+ +x.amount,0) + missFine + lateAuto + singleFine + advSum + mustFine;
+  const dep = depositCalc(emp, period);
+  const deduSum = dedu.reduce((a,x)=>a+ +x.amount,0) + missFine + lateAuto + singleFine + advSum + mustFine + dep.ded;
   return { days, lateCount, singleCount, singleDays, hours, fullHrs, missMin, lateMin, earlyMin, shortMin,
            base, adds, dedu, addSum, deduSum, missFine, lateAuto, singleFine, advs, advSum,
            dRate, holiDays, holiBonus, paidHoli, holiWorked, holiInPeriod, mustViol, mustFine,
-           offDue, offUsed, noOffDays, noOffBonus, wkOffWorked,
+           dep, offDue, offUsed, noOffDays, noOffBonus, wkOffWorked,
            crossDays, byBranch, dip,
            net: base + addSum - deduSum };
 }
@@ -1266,6 +1298,136 @@ function advQuota(emp, period){
   const taken = advances.filter(a=>a.empId===emp.id && a.period===period)
                         .reduce((a,x)=>a+ +x.amount,0);
   return { earned, byRatio, cap, taken, left: Math.max(0, cap - taken), days: ss.length, upto };
+}
+
+/* ---- เงินประกัน: หักอัตโนมัติเดือนละ depMonthly จนครบ depTarget ----
+   ไล่คิดทุกงวดที่มีวันทำงาน ตามลำดับเวลา · งวดไหนมี override (แก้เอง) ใช้ค่านั้นแทน
+   depOpen = ยอดที่เก็บมาก่อนเริ่มใช้ระบบ (คนเก็บครบแล้วใส่เท่าเป้าหมาย) */
+function depositCalc(emp, period){
+  const target = +(emp.depTarget||0);
+  const base = { target, override:null };
+  if(!target || emp.depOn===false)
+    return { ...base, ded:0, collected:+(emp.depOpen||0),
+             remain:Math.max(0, target-(+(emp.depOpen||0))), done: !target || (+(emp.depOpen||0))>=target };
+  const pds = [...new Set((shifts[emp.code]||[]).map(x=>periodOf(x.day)))].sort();
+  if(period && !pds.includes(period)) pds.push(period);
+  pds.sort();
+  let collected = +(emp.depOpen||0), ded = 0, override = null;
+  for(const pd of pds){
+    if(period && pd > period) break;
+    const ov = depositEntries.find(x=>x.empId===emp.id && x.period===pd);
+    const hasWork = (shifts[emp.code]||[]).some(x=>periodOf(x.day)===pd);
+    let d = ov ? Math.max(0, +ov.amount)
+               : hasWork ? Math.min(+(emp.depMonthly||0), Math.max(0, target - collected)) : 0;
+    if(pd === period){ ded = d; override = ov||null; }
+    collected += d;
+  }
+  return { target, ded, override, collected,
+           remain: Math.max(0, target - collected), done: collected >= target };
+}
+async function updDepField(empId, field, val){
+  if(!depReady) return toast('❌ ต้องรัน jj_deposit.sql ใน Supabase ก่อน');
+  const { error } = await db.from('employees').update({ [field]: val }).eq('id', empId);
+  if(error) return dbErr(error,'บันทึกเงินประกัน');
+  const e = employees.find(x=>x.id===empId);
+  if(field==='deposit_target')  e.depTarget = +val;
+  if(field==='deposit_monthly') e.depMonthly = +val;
+  if(field==='deposit_opening') e.depOpen = +val;
+  if(field==='deposit_on')      e.depOn = !!val;
+  renderDeposit(); renderPayroll(); renderDetail(); toast('บันทึกแล้ว');
+}
+async function setDepOverride(empId, period, val){
+  if(!depReady) return toast('❌ ต้องรัน jj_deposit.sql ใน Supabase ก่อน');
+  const cur = depositEntries.find(x=>x.empId===empId && x.period===period);
+  const v = String(val).trim();
+  if(v === ''){
+    if(cur){
+      const { error } = await db.from('deposit_entries').delete().eq('id', cur.id);
+      if(error) return dbErr(error,'ลบรายการเงินประกัน');
+      depositEntries = depositEntries.filter(x=>x.id!==cur.id);
+      toast('↺ กลับเป็นหักอัตโนมัติ');
+    }
+  } else {
+    const amount = Math.max(0, Math.floor(+v)||0);
+    const { data, error } = await db.from('deposit_entries')
+      .upsert({ employee_id:empId, period, amount }, { onConflict:'employee_id,period' })
+      .select().single();
+    if(error) return dbErr(error,'บันทึกเงินประกัน');
+    if(cur){ cur.amount = amount; } else depositEntries.push(fromDbDep(data));
+    toast(amount? 'หักงวดนี้ '+THB(amount)+' บาท' : 'งดหักงวดนี้');
+  }
+  renderDeposit(); renderPayroll(); renderDetail();
+}
+function editDeposit(empId, period){
+  const e = employees.find(x=>x.id===empId);
+  const d = depositCalc(e, period);
+  const v = prompt('🛡️ หักเงินประกันงวดนี้ — '+e.nick+
+    '\nปกติหัก '+THB(e.depMonthly)+'/เดือน · สะสมก่อนงวดนี้ '+THB(d.collected - d.ded)+' / เป้า '+THB(d.target)+
+    '\n\nใส่จำนวนบาท · 0 = งดหักงวดนี้ · เว้นว่างแล้วตกลง = กลับเป็นหักอัตโนมัติ',
+    d.override ? d.ded : '');
+  if(v === null) return;
+  setDepOverride(empId, period, v);
+}
+
+/* ================= DEPOSIT PAGE ================= */
+function renderDeposit(){
+  const tbl = document.getElementById('depTable'); if(!tbl) return;
+  const period = (document.getElementById('depPeriodSel')||{}).value || allPeriods()[0] || '';
+  const bf = document.getElementById('depBranch').value;
+  const sf = document.getElementById('depStatus').value;
+  const q  = (document.getElementById('depSearch').value||'').toLowerCase();
+  document.getElementById('depInfo').innerHTML = depReady
+    ? `หักจากเงินเดือนอัตโนมัติทุกงวดตามช่อง <b>หัก/เดือน</b> จนสะสมครบ<b>เป้าหมาย</b> แล้วหยุดเอง ·
+       แก้เฉพาะงวดได้ที่ช่อง <b>หักงวดนี้</b> (หรือคลิกช่องประกันในหน้า 💰 สรุปเงินเดือน) ·
+       คนที่เก็บมาก่อน/ครบแล้ว ใส่ยอดในช่อง <b>เก็บมาก่อน</b>`
+    : '<b style="color:var(--red)">⚠️ ยังไม่ได้รัน jj_deposit.sql ใน Supabase SQL Editor — รันก่อน ถึงจะบันทึกข้อมูลเงินประกันได้</b>';
+  if(!period){ tbl.innerHTML='<tr><td><div class="empty">ยังไม่มีข้อมูล</div></td></tr>';
+    document.getElementById('depStats').innerHTML=''; return; }
+
+  const list = employees.filter(e=>e.active && (!bf||e.branch===bf) && empMatch(e,q))
+    .map(e=>({e, d:depositCalc(e, period)}))
+    .filter(x=> !sf || (sf==='done' ? x.d.done : !x.d.done))
+    .sort((a,b)=> (a.e.branch||'').localeCompare(b.e.branch||'') ||
+                  (a.e.dept||'').localeCompare(b.e.dept||'','th') || a.e.nick.localeCompare(b.e.nick,'th'));
+
+  const nDone = list.filter(x=>x.d.done).length;
+  const sumDed = list.reduce((a,x)=>a+x.d.ded,0);
+  const sumRemain = list.reduce((a,x)=>a+x.d.remain,0);
+  const sumHave = list.reduce((a,x)=>a+x.d.collected,0);
+  document.getElementById('depStats').innerHTML = `
+    <div class="stat"><div class="v" style="color:var(--green)">${nDone}</div><div class="l">ครบแล้ว</div></div>
+    <div class="stat"><div class="v" style="color:${list.length-nDone?'var(--amber)':'inherit'}">${list.length-nDone}</div><div class="l">ยังไม่ครบ</div></div>
+    <div class="stat"><div class="v" style="color:var(--red)">${THB(sumDed)} ฿</div><div class="l">หักงวดนี้รวม</div></div>
+    <div class="stat"><div class="v">${THB(sumHave)} ฿</div><div class="l">สะสมรวม (ถึงงวดนี้)</div></div>
+    <div class="stat"><div class="v">${THB(sumRemain)} ฿</div><div class="l">ค้างเก็บรวม</div></div>`;
+
+  tbl.className = 'sticky-act';
+  tbl.innerHTML = `<thead><tr>
+      <th>พนักงาน</th><th>สาขา</th><th>แผนก</th>
+      <th class="num">เป้าหมาย</th><th class="num">หัก/เดือน</th><th class="num">เก็บมาก่อน</th>
+      <th class="num">หักงวดนี้</th><th class="num">สะสมแล้ว</th><th class="num">คงเหลือ</th><th>สถานะ</th>
+    </tr></thead><tbody>` +
+    (list.length? list.map(({e,d})=>`<tr${d.done?' style="background:#f3fbf5"':''}>
+      <td class="clickable" onclick="openDetail(${e.id})"><b style="color:var(--ember-deep)">${e.nick}</b> <span class="muted">${e.full||''}</span></td>
+      <td>${branchChip(e)}</td>
+      <td><span class="dept-chip">${e.dept||'–'}</span></td>
+      <td class="num"><input type="number" value="${e.depTarget??5000}" min="0" step="500" style="max-width:90px;text-align:right"
+        onchange="updDepField(${e.id},'deposit_target',+this.value||0)"></td>
+      <td class="num"><input type="number" value="${e.depMonthly??500}" min="0" step="100" style="max-width:80px;text-align:right"
+        onchange="updDepField(${e.id},'deposit_monthly',+this.value||0)"></td>
+      <td class="num"><input type="number" value="${e.depOpen??0}" min="0" step="100" style="max-width:90px;text-align:right"
+        title="ยอดที่เก็บมาก่อนเริ่มใช้ระบบ — คนเก็บครบแล้วใส่เท่าเป้าหมาย"
+        onchange="updDepField(${e.id},'deposit_opening',+this.value||0)"></td>
+      <td class="num"><input type="number" value="${d.ded}" min="0" step="100"
+        style="max-width:90px;text-align:right;font-weight:700${d.override?';border-color:var(--ember)':''}"
+        title="${d.override?'แก้เองงวดนี้ — ลบค่าแล้ว Enter = กลับอัตโนมัติ':'หักอัตโนมัติ — พิมพ์เพื่อแก้เฉพาะงวดนี้'}"
+        onchange="setDepOverride(${e.id},'${period}',this.value)">
+        ${d.override?'<span class="chip chip-amber" title="แก้เองงวดนี้">✎</span>':''}</td>
+      <td class="num"><b>${THB(d.collected)}</b> <span class="muted">/ ${THB(d.target)}</span></td>
+      <td class="num" style="color:${d.remain?'var(--red)':'var(--green)'}">${d.remain?THB(d.remain):'–'}</td>
+      <td>${d.done?'<span class="chip chip-green">✓ ครบแล้ว</span>':'<span class="chip chip-amber">เหลืออีก '+Math.ceil(d.remain/Math.max(1,e.depMonthly||500))+' งวด</span>'}</td>
+    </tr>`).join('')
+    : '<tr><td colspan="10"><div class="empty">ไม่พบพนักงานตามเงื่อนไข</div></td></tr>') + '</tbody>';
 }
 
 /* ================= SHIFT SETTINGS PAGE ================= */
@@ -1505,6 +1667,11 @@ async function saveEmpForm(){
     target: +document.getElementById('fTarget').value||10,
     active: +document.getElementById('fActive').value
   };
+  { const e0 = id ? employees.find(x=>x.id==id) : null;
+    data.depTarget  = e0 ? e0.depTarget  : 5000;
+    data.depMonthly = e0 ? e0.depMonthly : 500;
+    data.depOpen    = e0 ? e0.depOpen    : 0;
+    data.depOn      = e0 ? e0.depOn !== false : true; }
   // อัปโหลดรูปเข้า Supabase Storage (bucket: staff) ถ้าเลือกไฟล์ใหม่
   if(empPhotoFile){
     try{
@@ -1670,6 +1837,8 @@ function renderDetail(){
           ${p.mustFine? `<tr><td style="color:var(--red)">－ หยุดวันห้ามหยุด (${p.mustViol.length} วัน × ${THB(Math.round(p.dRate))})</td><td class="num" style="color:var(--red)">-${THB2(p.mustFine)}</td></tr>`:''}
           ${p.singleFine? `<tr><td style="color:var(--red)">－ ปรับลืมตอกบัตร (${p.singleCount} ครั้ง × ${THB(settings.singleFine)})</td><td class="num" style="color:var(--red)">-${THB2(p.singleFine)}</td></tr>`:''}
           ${p.advs.map(a=>`<tr><td style="color:var(--red)">－ เบิกกลางเดือน ${dayLabel(a.date)} <button class="btn btn-red btn-sm" style="padding:1px 7px" onclick="delAdv(${a.id})">✕</button></td><td class="num" style="color:var(--red)">-${THB2(a.amount)}</td></tr>`).join('')}
+          ${p.dep && p.dep.target && p.dep.ded? `<tr><td style="color:var(--red)">－ เงินประกัน${p.dep.override?' (แก้เอง)':''} · สะสม ${THB(p.dep.collected)}/${THB(p.dep.target)}${p.dep.done?' ✓ ครบ':''} <button class="btn btn-light btn-sm" style="padding:1px 7px" onclick="editDeposit(${e.id},'${period}')">✎</button></td><td class="num" style="color:var(--red)">-${THB2(p.dep.ded)}</td></tr>`
+            : p.dep && p.dep.target && !p.dep.done? `<tr><td class="muted">เงินประกัน — ไม่หักงวดนี้${p.dep.override?' (แก้เอง)':''} · สะสม ${THB(p.dep.collected)}/${THB(p.dep.target)} <button class="btn btn-light btn-sm" style="padding:1px 7px" onclick="editDeposit(${e.id},'${period}')">✎</button></td><td class="num muted">–</td></tr>`:''}
           ${p.dedu.map(a=>`<tr><td style="color:var(--red)">－ ${a.reason} <button class="btn btn-red btn-sm" style="padding:1px 7px" onclick="delAdj(${a.id})">✕</button></td><td class="num" style="color:var(--red)">-${THB2(+a.amount)}</td></tr>`).join('')}
           <tr><td style="font-weight:700">สุทธิ</td><td class="num" style="font-weight:700;color:var(--green)">${THB2(p.net)}</td></tr>
         </tbody></table></div>
@@ -1831,6 +2000,7 @@ function openSlip(empId, period){
   if(p.singleFine) dedRows.push([`ปรับลืมตอกบัตร (${p.singleCount} ครั้ง × ${THB(settings.singleFine)})`, p.singleFine]);
   if(p.mustFine) dedRows.push([`หยุดวันห้ามหยุด ${p.mustViol.map(v=>dayLabel(v.day)).join(', ')} (${p.mustViol.length} วัน × ${THB(Math.round(p.dRate))})`, p.mustFine]);
   p.advs.forEach(a=>dedRows.push([`เบิกล่วงหน้า ${dayLabel(a.date)}${a.note?' — '+a.note:''}`, +a.amount]));
+  if(p.dep && p.dep.ded) dedRows.push([`เงินประกัน (สะสม ${THB(p.dep.collected)} / ${THB(p.dep.target)}${p.dep.done?' — ครบแล้ว':''})`, p.dep.ded]);
   p.dedu.forEach(a=>dedRows.push([a.reason, +a.amount]));
 
   document.getElementById('slipBody').innerHTML = `
@@ -2473,7 +2643,8 @@ function renderPayroll(){
   const flagOk = (p) => !ff ||
     (ff==='single' && p.singleCount>0) || (ff==='late' && p.missMin>0) ||
     (ff==='adv' && p.advSum>0) || (ff==='bonus' && (p.holiBonus>0||p.noOffBonus>0)) ||
-    (ff==='cross' && p.crossDays.length>0) || (ff==='must' && p.mustViol.length>0);
+    (ff==='cross' && p.crossDays.length>0) || (ff==='must' && p.mustViol.length>0) ||
+    (ff==='dep' && p.dep.ded>0);
   const list = employees
     .filter(e=>(e.active || empShiftsInPeriod(e,period).length) &&
                (!bf || e.branch===bf) && (!df || e.dept===df) && (!pf || e.position===pf) && (!mf || e.mode===mf) && empMatch(e, q))
@@ -2482,8 +2653,8 @@ function renderPayroll(){
     .sort((a,b)=> (a.e.branch||'').localeCompare(b.e.branch||'') || (a.e.dept||'').localeCompare(b.e.dept||'','th') || a.e.nick.localeCompare(b.e.nick,'th'));
   const tot = list.reduce((a,x)=>({base:a.base+x.p.base, add:a.add+x.p.addSum, ded:a.ded+x.p.deduSum,
     net:a.net+x.p.net, days:a.days+x.p.days, miss:a.miss+x.p.missMin,
-    single:a.single+x.p.singleCount, adv:a.adv+x.p.advSum,
-    fullHrs:a.fullHrs+(x.e.mode==='hourly'?x.p.fullHrs:0)}),{base:0,add:0,ded:0,net:0,days:0,miss:0,single:0,adv:0,fullHrs:0});
+    single:a.single+x.p.singleCount, adv:a.adv+x.p.advSum, dep:a.dep+x.p.dep.ded,
+    fullHrs:a.fullHrs+(x.e.mode==='hourly'?x.p.fullHrs:0)}),{base:0,add:0,ded:0,net:0,days:0,miss:0,single:0,adv:0,dep:0,fullHrs:0});
   document.getElementById('payStats').innerHTML = `
     <div class="stat"><div class="v" style="color:${(bf||df||pf||mf||ff||q)?'var(--ember)':'inherit'}">${list.length}</div><div class="l">${(bf||df||pf||mf||ff||q)?'ผลการค้นหา':'พนักงานในงวดนี้'}</div></div>
     <div class="stat"><div class="v">${tot.days.toLocaleString()}</div><div class="l">วันทำงานรวม</div></div>
@@ -2494,7 +2665,7 @@ function renderPayroll(){
   tbl.innerHTML = `<thead><tr>
       <th>พนักงาน</th><th>สาขา</th><th>แผนก</th><th class="num">วัน</th><th class="num">ชม.</th>
       <th class="num">ชม.เต็ม</th><th class="num">ขาด (น.)</th><th class="num">ลืมตอก</th><th class="num">เบิกแล้ว</th>
-      <th class="num">ค่าแรง</th><th class="num">เพิ่ม</th><th class="num">หัก</th><th class="num">สุทธิ</th><th></th>
+      <th class="num">ประกัน</th><th class="num">ค่าแรง</th><th class="num">เพิ่ม</th><th class="num">หัก</th><th class="num">สุทธิ</th><th></th>
     </tr></thead><tbody>` +
     list.map(({e,p})=>`<tr>
       <td class="clickable" onclick="openDetail(${e.id})"><b style="color:var(--ember-deep)">${e.nick}</b> <span class="muted">${e.full||''}</span></td>
@@ -2506,6 +2677,7 @@ function renderPayroll(){
       <td class="num">${p.missMin? '<span class="chip chip-amber">'+p.missMin+'</span>':'–'}</td>
       <td class="num">${p.singleCount? '<span class="chip chip-red" title="'+p.singleDays.map(s=>dayLabel(s.day)+' '+singleLabel(s.singleKind)).join(', ')+'">'+p.singleCount+'</span>':'–'}</td>
       <td class="num">${p.advSum? '<span style="color:var(--red)">-'+THB(p.advSum)+'</span>':'–'}</td>
+      <td class="num clickable" title="เงินประกัน · สะสม ${THB(p.dep.collected)}/${THB(p.dep.target)} — คลิกเพื่อแก้งวดนี้" onclick="event.stopPropagation();editDeposit(${e.id},'${period}')">${p.dep.ded? '<span style="color:var(--red)">-'+THB(p.dep.ded)+'</span>'+(p.dep.override?' <span class="chip chip-amber">✎</span>':'') : (p.dep.done&&p.dep.target? '<span class="chip chip-green">✓</span>':'–')}</td>
       <td class="num">${THB(p.base)}</td>
       <td class="num" style="color:${p.addSum?'var(--green)':'inherit'}" title="${[p.noOffBonus?'เบี้ยไม่หยุด '+THB(p.noOffBonus):'',p.holiBonus?'เบี้ยวันหยุดพิเศษ '+THB(p.holiBonus):''].filter(Boolean).join(' · ')}">${p.addSum?'+'+THB(p.addSum):'–'}</td>
       <td class="num" style="color:${p.deduSum?'var(--red)':'inherit'}">${p.deduSum?'-'+THB(p.deduSum):'–'}</td>
@@ -2516,7 +2688,7 @@ function renderPayroll(){
       </div></td>
     </tr>`).join('') +
     `</tbody><tfoot><tr><td colspan="5">รวม ${list.length} คน</td><td class="num">${tot.fullHrs||'–'}</td><td class="num">${tot.miss}</td>
-      <td class="num">${tot.single||'–'}</td><td class="num">-${THB(tot.adv)}</td>
+      <td class="num">${tot.single||'–'}</td><td class="num">-${THB(tot.adv)}</td><td class="num">-${THB(tot.dep)}</td>
       <td class="num">${THB(tot.base)}</td><td class="num">+${THB(tot.add)}</td>
       <td class="num">-${THB(tot.ded)}</td><td class="num">${THB(tot.net)}</td><td></td></tr></tfoot>`;
 }
@@ -2525,7 +2697,7 @@ function exportPayrollXlsx(){
   if(!period) return toast('❌ ยังไม่มีข้อมูล');
   const bf2 = (document.getElementById('payBranch')||{}).value||'';
   const df2 = (document.getElementById('payDept')||{}).value||'';
-  const rows = [['ชื่อเล่น','ชื่อ-นามสกุล','สาขา','แผนก','ตำแหน่ง','รูปแบบ','ประเภท','อัตรา','วันทำงาน','ชั่วโมง','สาย(ครั้ง)','สาย(นาที)','ออกก่อน(นาที)','ชม.ขาด(นาที)','ชม.เต็ม(รายชั่วโมง)','ไม่หยุด(วัน)','เบี้ยไม่หยุด','วันหยุดพิเศษ(ได้)','เบี้ยวันหยุด','ข้ามสาขา(วัน)','สาขาที่ทำงาน','ลืมตอก(ครั้ง)','ลืมตอก(วันที่)','หยุดวันห้ามหยุด','เบิกกลางเดือน','ค่าแรง','เพิ่ม','หัก','สุทธิ']];
+  const rows = [['ชื่อเล่น','ชื่อ-นามสกุล','สาขา','แผนก','ตำแหน่ง','รูปแบบ','ประเภท','อัตรา','วันทำงาน','ชั่วโมง','สาย(ครั้ง)','สาย(นาที)','ออกก่อน(นาที)','ชม.ขาด(นาที)','ชม.เต็ม(รายชั่วโมง)','ไม่หยุด(วัน)','เบี้ยไม่หยุด','วันหยุดพิเศษ(ได้)','เบี้ยวันหยุด','ข้ามสาขา(วัน)','สาขาที่ทำงาน','ลืมตอก(ครั้ง)','ลืมตอก(วันที่)','หยุดวันห้ามหยุด','เบิกกลางเดือน','ประกันงวดนี้','ประกันสะสม','ประกันคงเหลือ','ค่าแรง','เพิ่ม','หัก','สุทธิ']];
   employees.filter(e=>(e.active || empShiftsInPeriod(e,period).length) &&
                       (!bf2||e.branch===bf2) && (!df2||e.dept===df2)).forEach(e=>{
     const p = calcPay(e,period);
@@ -2538,10 +2710,10 @@ function exportPayrollXlsx(){
       p.crossDays.length||'', Object.entries(p.byBranch).map(([b,n])=>((BR[b]||{}).t||b)+':'+n).join(' '),
       p.singleCount, p.singleDays.map(s=>dayLabel(s.day)+' '+singleLabel(s.singleKind)).join(', '),
       p.mustViol.length? p.mustViol.map(v=>dayLabel(v.day)).join(', ')+' (-'+THB(p.mustFine)+')' : '',
-      p.advSum, p.base, p.addSum, p.deduSum, p.net]);
+      p.advSum, p.dep.ded||'', p.dep.collected||'', p.dep.remain||'', p.base, p.addSum, p.deduSum, p.net]);
   });
   const ws = XLSX.utils.aoa_to_sheet(rows);
-  ws['!cols'] = [{wch:10},{wch:22},{wch:10},{wch:14},{wch:14},{wch:13},{wch:9},{wch:8},{wch:9},{wch:8},{wch:9},{wch:9},{wch:11},{wch:12},{wch:11},{wch:11},{wch:13},{wch:14},{wch:11},{wch:12},{wch:22},{wch:11},{wch:30},{wch:24},{wch:12},{wch:10},{wch:8},{wch:8},{wch:10}];
+  ws['!cols'] = [{wch:10},{wch:22},{wch:10},{wch:14},{wch:14},{wch:13},{wch:9},{wch:8},{wch:9},{wch:8},{wch:9},{wch:9},{wch:11},{wch:12},{wch:11},{wch:11},{wch:13},{wch:14},{wch:11},{wch:12},{wch:22},{wch:11},{wch:30},{wch:24},{wch:12},{wch:11},{wch:11},{wch:12},{wch:10},{wch:8},{wch:8},{wch:10}];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Payroll '+period);
   XLSX.writeFile(wb, 'payroll_'+period+'.xlsx');
@@ -2622,6 +2794,10 @@ function startRealtime(){
     .on('postgres_changes', { event:'*', schema:'public', table:'advances' }, async ()=>{
       const { data } = await db.from('advances').select('*');
       if(data){ advances = data.map(fromDbAdv); rtQueue++; scheduleRtRefresh(); }
+    })
+    .on('postgres_changes', { event:'*', schema:'public', table:'deposit_entries' }, async ()=>{
+      try{ const { data } = await db.from('deposit_entries').select('*');
+        if(data){ depositEntries = data.map(fromDbDep); rtQueue++; scheduleRtRefresh(); } }catch(_){}
     })
     .subscribe((status)=>{
       if(status === 'SUBSCRIBED') conn(true, 'sync สด · '+employees.length+' คน');
