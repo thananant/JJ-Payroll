@@ -2,7 +2,7 @@
 <html lang="th">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>JJMK Payroll — ระบบเงินเดือนพนักงาน</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -51,21 +51,6 @@ aside nav button:hover:not(.active){color:var(--brand-deep);background:var(--emb
   aside nav button.active{border-left:none;border-bottom-color:var(--ember)}
   .side-foot{flex-direction:row}
   .side-foot .btn{width:auto}
-  main{padding:12px}
-  input,select{font-size:16px;padding:10px 12px}   /* ≥16px กัน iPhone ซูมเด้งเอง */
-  td input,td select{font-size:16px;padding:6px 8px}
-  .toolbar{gap:8px}
-  .toolbar input[type=search]{max-width:100%;flex:1;min-width:150px}
-  .toolbar label{flex-wrap:wrap}
-  .stats{grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px}
-  .stat .v{font-size:20px}
-  .card{padding:14px;border-radius:14px}
-  .modal{padding:20px 14px;margin:8px auto;border-radius:16px}
-  .grid.g2,.grid.g3{grid-template-columns:1fr}
-  table{font-size:13.5px}
-  th,td{padding:8px 8px}
-  .cal{min-width:640px}
-  .slip-cols{flex-direction:column}
 }
 .btn{font-family:'Prompt',sans-serif;border:none;border-radius:99px;padding:8px 18px;font-size:14px;cursor:pointer;font-weight:500;transition:.15s;display:inline-flex;align-items:center;gap:6px}
 .btn-ember{background:var(--brand-grad);color:#fff;box-shadow:0 4px 12px rgba(255,90,31,.3)}.btn-ember:hover{filter:brightness(1.06);box-shadow:0 6px 16px rgba(255,90,31,.42)}
@@ -119,11 +104,6 @@ input,select{font-family:'Sarabun',sans-serif;font-size:14.5px;padding:9px 13px;
 input:focus,select:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0 3px rgba(255,90,31,.12)}
 input:focus,select:focus{outline:2px solid rgba(232,89,12,.25);border-color:var(--ember)}
 td input,td select{padding:5px 8px;font-size:13.5px}
-.emp-pick{max-height:230px;overflow-y:auto;-webkit-overflow-scrolling:touch;border:1.5px solid var(--line);border-radius:12px;background:#fff}
-.emp-pick .opt{padding:10px 13px;cursor:pointer;border-bottom:1px solid #f0ebe2;font-size:14.5px}
-.emp-pick .opt:last-child{border-bottom:none}
-.emp-pick .opt.sel{background:var(--ember-soft);color:var(--brand-deep)}
-.emp-pick .opt.sel b{color:var(--brand-deep)}
 input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
 input[type=number]{-moz-appearance:textfield;appearance:textfield}
 .grid{display:grid;gap:12px}
@@ -696,6 +676,11 @@ tr.grp-dept td{background:#faf7f1;font-size:11.5px;font-weight:600;color:var(--i
     <button class="close" onclick="closeModal('adjBg')">✕</button>
     <h2 class="font-display" id="adjTitle">เพิ่มรายการ</h2>
     <input type="hidden" id="adjEmpId"><input type="hidden" id="adjKind">
+    <div id="adjPresetWrap" style="display:none;margin-top:12px">
+      <label>รายการหักเบื้องต้น — แตะเลือกได้เลย</label>
+      <div class="preset-list" style="display:flex;gap:6px;flex-wrap:wrap"></div>
+      <p class="muted" style="margin-top:6px">เลือกแล้วแก้ยอดได้ · นอกเหนือจากนี้กด "อื่นๆ" แล้วใส่เหตุผลพร้อมยอดหักเอง</p>
+    </div>
     <div class="grid" style="margin-top:14px">
       <div><label>รายการ</label><input id="adjReason" placeholder="เช่น หักเบิกล่วงหน้า / โบนัส / ค่า OT"></div>
       <div class="grid g2">
@@ -755,7 +740,7 @@ tr.grp-dept td{background:#faf7f1;font-size:11.5px;font-weight:600;color:var(--i
     <div class="grid g2">
       <div style="grid-column:1/-1"><label>พนักงาน *</label>
         <input id="mouEmpSearch" placeholder="🔍 พิมพ์ชื่อ / รหัส เพื่อค้นหา…" oninput="fillMouEmp(this.value)" style="margin-bottom:6px">
-        <div class="emp-pick" id="mouEmpList"></div></div>
+        <select id="mouEmp" size="5"></select></div>
       <div><label>ยอดเงินที่ยืม (บาท)</label><input type="number" id="mouAmount" value="15000" min="0" step="500"></div>
       <div><label>เริ่มหักตั้งแต่งวด</label><select id="mouStart"></select></div>
       <div><label>หักต่อเดือน (บาท)</label><input type="number" id="mouMonthly" value="2000" min="0" step="500"></div>
@@ -789,7 +774,7 @@ tr.grp-dept td{background:#faf7f1;font-size:11.5px;font-weight:600;color:var(--i
     <div class="grid g2">
       <div style="grid-column:1/-1"><label>พนักงาน *</label>
         <input id="bEmpSearch" placeholder="🔍 พิมพ์ชื่อ / รหัส เพื่อค้นหา…" oninput="fillBorrowEmp(this.value)" style="margin-bottom:6px">
-        <div class="emp-pick" id="bEmpList"></div></div>
+        <select id="bEmp" size="5"></select></div>
       <div><label>เอกสารที่ยืม *</label>
         <input id="bDoc" list="docList" value="Passport">
         <datalist id="docList">
@@ -1651,25 +1636,19 @@ function editMou(empId, period){
   if(v === null) return;
   setMouOverride(empId, period, v);
 }
-let mouEmpPick = null;
 function fillMouEmp(q){
   q = (q||'').toLowerCase();
   const free = employees.filter(e=>e.active && !mouLoans.find(l=>l.empId===e.id) && empMatch(e, q))
     .sort((a,b)=>(a.branch||'').localeCompare(b.branch||'') || a.nick.localeCompare(b.nick,'th'));
-  if(!free.find(x=>x.id===mouEmpPick)) mouEmpPick = free.length? free[0].id : null;
-  document.getElementById('mouEmpList').innerHTML = free.length
-    ? free.map(e=>`<div class="opt${e.id===mouEmpPick?' sel':''}" onclick="pickMouEmp(${e.id})">
-        <b>${e.nick}</b> ${e.full?'<span class="muted">'+e.full+'</span>':''}
-        <span class="muted" style="float:right">${(BR[e.branch]||{}).t||'–'}${e.dept?' · '+e.dept:''}</span></div>`).join('')
-    : '<div class="opt muted">– ไม่พบพนักงาน –</div>';
+  document.getElementById('mouEmp').innerHTML = free.length
+    ? free.map(e=>`<option value="${e.id}">${e.nick}${e.full?' ('+e.full+')':''} · ${(BR[e.branch]||{}).t||'–'}${e.dept?' · '+e.dept:''}</option>`).join('')
+    : '<option value="">– ไม่พบพนักงาน –</option>';
 }
-function pickMouEmp(id){ mouEmpPick = id; fillMouEmp(document.getElementById('mouEmpSearch').value); }
 function openMouForm(){
   if(!mouReady) return toast('❌ ต้องรัน jj_mou.sql ใน Supabase ก่อน');
   const free = employees.filter(e=>e.active && !mouLoans.find(l=>l.empId===e.id));
   if(!free.length) return toast('❌ พนักงานทุกคนมีรายการ MOU แล้ว');
   document.getElementById('mouEmpSearch').value = '';
-  mouEmpPick = null;
   fillMouEmp('');
   const ps = allPeriods();
   const cur = (document.getElementById('mouPeriodSel')||{}).value || ps[0] || periodOf(localYMD(new Date()));
@@ -1686,7 +1665,7 @@ function openMouForm(){
   document.getElementById('mouBg').classList.add('show');
 }
 async function saveMouLoan(){
-  const empId = +mouEmpPick;
+  const empId = +document.getElementById('mouEmp').value;
   const amount = +document.getElementById('mouAmount').value;
   if(!empId) return toast('❌ เลือกพนักงาน');
   if(!amount || amount<=0) return toast('❌ ใส่ยอดเงินที่ยืม');
@@ -1734,23 +1713,17 @@ async function delMouLoan(loanId){
   renderMou(); renderPayroll(); renderDetail(); toast('ลบแล้ว');
 }
 /* ---- สมุดยืม-คืนเอกสาร ---- */
-let borrowEmpPick = null;
 function fillBorrowEmp(q){
   q = (q||'').toLowerCase();
   const list = employees.filter(e=>e.active && empMatch(e, q))
     .sort((a,b)=>(a.branch||'').localeCompare(b.branch||'') || a.nick.localeCompare(b.nick,'th'));
-  if(!list.find(x=>x.id===borrowEmpPick)) borrowEmpPick = list.length? list[0].id : null;
-  document.getElementById('bEmpList').innerHTML = list.length
-    ? list.map(e=>`<div class="opt${e.id===borrowEmpPick?' sel':''}" onclick="pickBorrowEmp(${e.id})">
-        <b>${e.nick}</b> ${e.full?'<span class="muted">'+e.full+'</span>':''}
-        <span class="muted" style="float:right">${(BR[e.branch]||{}).t||'–'}${e.dept?' · '+e.dept:''}</span></div>`).join('')
-    : '<div class="opt muted">– ไม่พบพนักงาน –</div>';
+  document.getElementById('bEmp').innerHTML = list.length
+    ? list.map(e=>`<option value="${e.id}">${e.nick}${e.full?' ('+e.full+')':''} · ${(BR[e.branch]||{}).t||'–'}${e.dept?' · '+e.dept:''}</option>`).join('')
+    : '<option value="">– ไม่พบพนักงาน –</option>';
 }
-function pickBorrowEmp(id){ borrowEmpPick = id; fillBorrowEmp(document.getElementById('bEmpSearch').value); }
 function openBorrowForm(){
   if(!mouReady) return toast('❌ ต้องรัน jj_mou.sql ใน Supabase ก่อน');
   document.getElementById('bEmpSearch').value = '';
-  borrowEmpPick = null;
   fillBorrowEmp('');
   document.getElementById('bDoc').value = 'Passport';
   document.getElementById('bDate').value = localYMD(new Date());
@@ -1758,7 +1731,7 @@ function openBorrowForm(){
   document.getElementById('borrowBg').classList.add('show');
 }
 async function saveBorrow(){
-  const empId = +borrowEmpPick;
+  const empId = +document.getElementById('bEmp').value;
   const doc = document.getElementById('bDoc').value.trim();
   const bdate = document.getElementById('bDate').value;
   if(!empId || !doc || !bdate) return toast('❌ กรอกให้ครบ: พนักงาน / เอกสาร / วันที่ยืม');
@@ -2377,21 +2350,50 @@ function renderDetail(){
 }
 
 /* ================= ADJUSTMENTS ================= */
+/* รายการหักเบื้องต้น — เลือกปุ๊บ เติมเหตุผล+ยอดให้เอง (แก้ยอดต่อได้) */
+const ADJ_PRESETS = [
+  { r:'แต่งตัวผิดระเบียบ',        a:50  },
+  { r:'ไม่ใส่เสื้อพนักงาน',        a:200 },
+  { r:'เล่นโทรศัพท์ขณะทำงาน',    a:100 },
+  { r:'ไม่เก็บโทรศัพท์',           a:100 },
+];
+function pickAdjPreset(i){
+  if(i < 0){ // อื่นๆ — พิมพ์เอง
+    document.getElementById('adjReason').value = '';
+    document.getElementById('adjAmount').value = '';
+    document.getElementById('adjReason').focus();
+  } else {
+    const p = ADJ_PRESETS[i];
+    document.getElementById('adjReason').value = p.r;
+    document.getElementById('adjAmount').value = p.a;
+  }
+  document.querySelectorAll('#adjPresetWrap .preset').forEach((b,bi)=>
+    b.classList.toggle('btn-ember', bi === (i<0 ? ADJ_PRESETS.length : i)));
+}
 function openAdj(empId, kind, period){
   document.getElementById('adjEmpId').value = empId;
   document.getElementById('adjKind').value = kind;
   document.getElementById('adjTitle').textContent = kind==='add' ? '＋ เพิ่มเงิน (OT / โบนัส / อื่นๆ)' : '－ หักเงิน';
   document.getElementById('adjReason').value = '';
   document.getElementById('adjAmount').value = '';
+  const w = document.getElementById('adjPresetWrap');
+  w.style.display = kind==='deduct' ? '' : 'none';
+  if(kind==='deduct'){
+    w.querySelector('.preset-list').innerHTML =
+      ADJ_PRESETS.map((p,i)=>`<button class="btn btn-light btn-sm preset" onclick="pickAdjPreset(${i})">${p.r} <b style="color:var(--red)">-${p.a}</b></button>`).join('') +
+      `<button class="btn btn-light btn-sm preset" onclick="pickAdjPreset(-1)">✏️ อื่นๆ (ระบุเอง)</button>`;
+    document.querySelectorAll('#adjPresetWrap .preset').forEach(b=>b.classList.remove('btn-ember'));
+  }
   if(period) document.getElementById('adjPeriod').value = period;
   document.getElementById('adjBg').classList.add('show');
 }
 async function saveAdj(){
   const empId = +document.getElementById('adjEmpId').value;
   const kind = document.getElementById('adjKind').value;
-  const reason = document.getElementById('adjReason').value.trim() || (kind==='add'?'เพิ่มเงิน':'หักเงิน');
+  const reason = document.getElementById('adjReason').value.trim() || (kind==='add'?'เพิ่มเงิน':'');
   const amount = +document.getElementById('adjAmount').value;
   const period = document.getElementById('adjPeriod').value;
+  if(kind==='deduct' && !reason) return toast('❌ เลือกรายการหัก หรือใส่เหตุผลก่อน');
   if(!amount || amount<=0) return toast('❌ กรุณาใส่จำนวนเงิน');
   if(!period) return toast('❌ ยังไม่มีงวดเดือน');
   const { data, error } = await db.from('adjustments')
