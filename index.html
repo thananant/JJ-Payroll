@@ -754,6 +754,34 @@ tr.grp-dept td{background:#faf7f1;font-size:11.5px;font-weight:600;color:var(--i
   </div>
 </div>
 
+<!-- ============ PUNCH EDIT MODAL ============ -->
+<div class="modal-bg" id="punchBg" onclick="if(event.target===this)closeModal('punchBg')">
+  <div class="modal">
+    <button class="close" onclick="closeModal('punchBg')">✕</button>
+    <h2 class="font-display" id="punchTitle">🕐 แก้เวลาเข้า-ออก</h2>
+    <p class="muted" style="margin-bottom:8px">สำหรับวันที่เครื่องสแกนหน้าไม่ติด / ลืมสแกน — ใส่เวลาจริงแทนได้เลย</p>
+    <div class="warn-note" id="pCur" style="margin-bottom:12px"></div>
+    <input type="hidden" id="pEmpId">
+    <div class="grid g3">
+      <div><label>วันที่ (วันเริ่มกะ) *</label>
+        <input type="date" id="pDay" onchange="openPunchEdit(+document.getElementById('pEmpId').value, this.value)"></div>
+      <div><label>เวลาเข้า *</label><input type="time" id="pIn"></div>
+      <div><label>เวลาออก</label><input type="time" id="pOut"></div>
+    </div>
+    <p class="muted" style="margin-top:8px">
+      กะข้ามคืนใส่ตามจริงได้เลย เช่น เข้า 18:00 ออก 03:00 ระบบรู้เองว่าออกวันรุ่งขึ้น ·
+      ยังไม่เลิกงานให้เว้น "เวลาออก" ว่างไว้ ·
+      <b>การบันทึกจะแทนที่เวลาสแกนเดิมของวันนั้นทั้งวัน</b> (แก้สาย/ลืมตอกให้ใหม่อัตโนมัติ)</p>
+    <div style="display:flex;gap:10px;margin-top:20px;justify-content:space-between;flex-wrap:wrap">
+      <button class="btn btn-red" id="pDelBtn" onclick="delPunchDay()">🗑 ลบเวลาทั้งวันนี้</button>
+      <div style="display:flex;gap:10px;margin-left:auto">
+        <button class="btn btn-light" onclick="closeModal('punchBg')">ยกเลิก</button>
+        <button class="btn btn-ember" onclick="savePunchEdit()">บันทึกเวลา</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- ============ MOU MODAL ============ -->
 <div class="modal-bg" id="mouBg" onclick="if(event.target===this)closeModal('mouBg')">
   <div class="modal">
@@ -2216,6 +2244,77 @@ async function delEmp(id){
   busy(false);
 }
 
+/* ================= แก้เวลาเข้า-ออกแมนนวล (เครื่องสแกนไม่ติด) ================= */
+const nextDayS = d => localYMD(new Date(new Date(d+'T12:00:00').getTime() + 86400000));
+/* ลบเวลาสแกนทั้งหมดที่เป็นของ "วันกะ" นั้น (รวมช่วงหลังเที่ยงคืนก่อนจุดตัดวัน) */
+async function wipeDayPunches(code, day){
+  const nd = nextDayS(day);
+  const cut = String(settings.cutoff).padStart(2,'0') + ':00';
+  let r = await db.from('punches').delete().eq('emp_code', code).eq('punch_date', day).gte('punch_time', cut);
+  if(r.error) throw r.error;
+  r = await db.from('punches').delete().eq('emp_code', code).eq('punch_date', nd).lt('punch_time', cut);
+  if(r.error) throw r.error;
+  punches = punches.filter(p=>!(p.code===code && (
+    (p.date===day && toMin(p.time) >= settings.cutoff*60) ||
+    (p.date===nd  && toMin(p.time) <  settings.cutoff*60))));
+}
+function openPunchEdit(empId, day){
+  const e = employees.find(x=>x.id===empId); if(!e) return;
+  document.getElementById('pEmpId').value = empId;
+  document.getElementById('punchTitle').textContent = '🕐 แก้เวลาเข้า-ออก — ' + e.nick;
+  const rec = day ? (shifts[e.code]||[]).find(r=>r.day===day) : null;
+  document.getElementById('pDay').value = day || localYMD(new Date());
+  document.getElementById('pIn').value  = rec ? fmtT(rec.in) : '';
+  document.getElementById('pOut').value = rec && !rec.single ? fmtT(rec.out) : '';
+  document.getElementById('pCur').innerHTML = rec
+    ? 'ของเดิม: เข้า <b>'+fmtT(rec.in)+'</b>'+(rec.single? ' · <span style="color:var(--red)">'+singleLabel(rec.singleKind)+'</span>' : ' · ออก <b>'+fmtT(rec.out)+'</b>')+' · '+rec.shiftName
+    : '<span class="muted">วันนี้ยังไม่มีเวลาสแกน — เพิ่มใหม่ได้เลย</span>';
+  document.getElementById('pDelBtn').style.display = rec ? '' : 'none';
+  document.getElementById('punchBg').classList.add('show');
+}
+async function savePunchEdit(){
+  const empId = +document.getElementById('pEmpId').value;
+  const e = employees.find(x=>x.id===empId); if(!e) return;
+  const day = document.getElementById('pDay').value;
+  const tin = document.getElementById('pIn').value;
+  const tout = document.getElementById('pOut').value;
+  if(!day) return toast('❌ เลือกวันที่ก่อน');
+  if(!tin) return toast('❌ ใส่เวลาเข้าอย่างน้อย');
+  busy(true,'กำลังบันทึกเวลา…');
+  try{
+    await wipeDayPunches(e.code, day);
+    const dateFor = t => toMin(t) < settings.cutoff*60 ? nextDayS(day) : day;
+    const rows = [{ emp_code:e.code, punch_date:dateFor(tin), punch_time:tin, source:'manual' }];
+    if(tout){
+      let od = dateFor(tout);
+      if(od === dateFor(tin) && toMin(tout) <= toMin(tin)) od = nextDayS(day);   // ออก <= เข้า = ข้ามคืน
+      rows.push({ emp_code:e.code, punch_date:od, punch_time:tout, source:'manual' });
+    }
+    const { error } = await db.from('punches').upsert(rows,
+      { onConflict:'emp_code,punch_date,punch_time', ignoreDuplicates:true });
+    if(error) throw error;
+    rows.forEach(r=>{
+      punches.push({ code:r.emp_code, date:r.punch_date, time:r.punch_time, sn:'' });
+      if(seenSet) seenSet.add(r.emp_code+'|'+r.punch_date+'|'+r.punch_time);
+    });
+    recomputeAll(); renderAll(); closeModal('punchBg');
+    toast('✅ บันทึกเวลา '+e.nick+' '+dayLabel(day)+' แล้ว');
+  }catch(err){ dbErr(err,'บันทึกเวลา'); }
+  busy(false);
+}
+async function delPunchDay(){
+  const empId = +document.getElementById('pEmpId').value;
+  const e = employees.find(x=>x.id===empId); if(!e) return;
+  const day = document.getElementById('pDay').value;
+  if(!confirm('ลบเวลาสแกนของ "'+e.nick+'" วัน '+dayLabel(day)+' ทั้งวัน?\n(วันนั้นจะกลายเป็นไม่มาทำงาน)')) return;
+  busy(true,'กำลังลบ…');
+  try{
+    await wipeDayPunches(e.code, day);
+    recomputeAll(); renderAll(); closeModal('punchBg'); toast('ลบแล้ว');
+  }catch(err){ dbErr(err,'ลบเวลา'); }
+  busy(false);
+}
+
 /* ================= DETAIL PAGE ================= */
 let detailEmpId = null;
 function openDetail(id){
@@ -2292,9 +2391,10 @@ function renderDetail(){
 
     <div class="grid g2" style="align-items:start">
       <div>
-        <div class="section-title">การเข้างาน — ${period?periodLabel(period):''}</div>
+        <div class="section-title">การเข้างาน — ${period?periodLabel(period):''}<span style="flex:1"></span>
+          <button class="btn btn-light btn-sm" style="font-weight:400" onclick="openPunchEdit(${e.id}, null)">🕐 เพิ่ม/แก้เวลา (สแกนไม่ติด)</button></div>
         <div class="tbl-wrap" style="max-height:380px;overflow-y:auto">
-        <table><thead><tr><th>วันที่</th><th>กะ</th><th>เข้า</th><th>ออก</th><th class="num">ชม.</th><th class="num">${isHr?'นับได้':'ขาด'}</th></tr></thead><tbody>
+        <table><thead><tr><th>วันที่</th><th>กะ</th><th>เข้า</th><th>ออก</th><th class="num">ชม.</th><th class="num">${isHr?'นับได้':'ขาด'}</th><th></th></tr></thead><tbody>
         ${ss.length? ss.map(s=>{
           const wd = WD_TH[new Date(s.day+'T12:00:00').getDay()];
           const hd = p.holiDays.find(x=>x.day===s.day);
@@ -2310,8 +2410,9 @@ function renderDetail(){
             <td class="num">${s.hours?s.hours.toFixed(1):'–'}</td>
             <td class="num">${isHr ? (s.fullHours? '<b style="color:var(--green)">'+s.fullHours+' ชม.</b>':'–')
                                    : (s.missMin?'<span style="color:var(--red)">'+s.missMin+' น.</span>':'–')}</td>
+            <td><button class="btn btn-light btn-sm" style="padding:2px 7px" title="แก้เวลาเข้า-ออกวันนี้" onclick="openPunchEdit(${e.id},'${s.day}')">✎</button></td>
           </tr>`;
-        }).join('') : '<tr><td colspan="6"><div class="empty">ไม่มีข้อมูลในงวดนี้</div></td></tr>'}
+        }).join('') : '<tr><td colspan="7"><div class="empty">ไม่มีข้อมูลในงวดนี้</div></td></tr>'}
         </tbody></table></div>
       </div>
       <div>
