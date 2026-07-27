@@ -216,7 +216,10 @@ tr.grp-dept td{background:#faf7f1;font-size:11.5px;font-weight:600;color:var(--i
 .slip-sm .section-title::before{width:7px;height:7px;border-radius:2px}
 .slip-sm .slip-total{padding:5px 10px;margin-top:5px;border-radius:7px}
 .slip-sm .slip-total .n{font-size:14px}
-.slip-sm .slip-sign{margin-top:8px;font-size:7.8px;gap:24px}
+.slip-sm .slip-sign{margin-top:6px;font-size:7.8px;gap:24px}
+.slip-sm .slip-cols{gap:6px}
+.slip-sm .slip-total{margin-top:4px}
+.slip-sm .grid.g2{gap:6px}
 .slip-page{background:#fff}
 .slip-half{overflow:hidden}
 .slip-cut{border-top:2px dashed #c7bcae;margin:0;position:relative}
@@ -2769,9 +2772,13 @@ function buildSlip(e, period, compact){
                   .sort((a,b)=>a.d<b.d?-1:1).map(x=>x.h);
       if(!all.length) return '<p class="small" style="text-align:center;color:#6b625b">ไม่มีข้อมูลการเข้างานในรอบนี้</p>';
       const head = `<thead><tr><th>วันที่</th><th>เข้า</th><th>ออก</th><th class="num">${isHr?'นับได้':'ชม.'}</th><th>หมายเหตุ</th></tr></thead>`;
-      const half = Math.ceil(all.length/2);
+      const nCol = compact ? 3 : 2;               // ครึ่งหน้า A4 ใช้ 3 คอลัมน์ ให้เตี้ยพอครึ่งหน้าเสมอ
+      const per = Math.ceil(all.length / nCol);
       const t = rows=>`<table>${head}<tbody>${rows.join('')}</tbody></table>`;
-      return `<div class="slip-cols"><div>${t(all.slice(0,half))}</div><div>${all.length>half? t(all.slice(half)) : ''}</div></div>`;
+      const chunks = [];
+      for(let i=0; i<all.length; i+=per) chunks.push(all.slice(i, i+per));
+      while(chunks.length < nCol) chunks.push(null);
+      return `<div class="slip-cols">${chunks.map(c=>'<div>'+(c? t(c):'')+'</div>').join('')}</div>`;
     })()}
 
     <div class="grid g2" style="margin-top:14px;align-items:start">
