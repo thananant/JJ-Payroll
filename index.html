@@ -201,13 +201,38 @@ tr.grp-dept td{background:#faf7f1;font-size:11.5px;font-weight:600;color:var(--i
 .slip-total .n{font-family:'Prompt',sans-serif;font-size:19px;font-weight:600;color:#ffb37a}
 .slip-sign{display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:20px;font-size:10px;color:var(--ink-soft);text-align:center}
 .slip-sign div{border-top:1px dotted #b9ad9f;padding-top:4px}
+/* ---- สลิปแบบครึ่งหน้า (2 คน / A4) ---- */
+.slip-sm{padding:8px 14px;font-size:9px}
+.slip-sm .slip-head{padding-bottom:5px;border-bottom-width:2px;gap:8px}
+.slip-sm .slip-head .logo{width:26px;height:26px;font-size:13px;border-radius:7px}
+.slip-sm h1{font-size:11.5px}
+.slip-sm .co{font-size:8px}
+.slip-sm .slip-emp{padding:4px 0;gap:8px}
+.slip-sm .kv{font-size:8.3px;gap:0 6px}
+.slip-sm table{font-size:7.6px;margin:2px 0}
+.slip-sm th{font-size:7.1px;padding:2px 4px}
+.slip-sm td{padding:1.5px 4px}
+.slip-sm .section-title{font-size:9px;margin:5px 0 2px}
+.slip-sm .section-title::before{width:7px;height:7px;border-radius:2px}
+.slip-sm .slip-total{padding:5px 10px;margin-top:5px;border-radius:7px}
+.slip-sm .slip-total .n{font-size:14px}
+.slip-sm .slip-sign{margin-top:8px;font-size:7.8px;gap:24px}
+.slip-page{background:#fff}
+.slip-half{overflow:hidden}
+.slip-cut{border-top:2px dashed #c7bcae;margin:0;position:relative}
+.slip-cut::after{content:'✂';position:absolute;left:12px;top:-9px;color:#b9ad9f;font-size:11px;background:#fff;padding:0 4px}
 @media print{
   body *{visibility:hidden}
   #slipBg, #slipBg *{visibility:visible}
   #slipBg{position:absolute;inset:0;background:#fff;padding:0;display:block!important;overflow:visible}
   #slipBg .modal{box-shadow:none;margin:0;max-width:100%;border-radius:0}
   #slipBg .close, #slipBg .noprint{display:none!important}
+  *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
   .slip{page-break-inside:avoid}
+  .slip-page{height:277mm;page-break-after:always;page-break-inside:avoid}
+  .slip-page:last-of-type{page-break-after:auto}
+  .slip-half{height:137mm;overflow:hidden}
+  .slip-cut{margin:1.5mm 0}
   @page{size:A4;margin:9mm}
 }
 .warn-note{background:var(--amber-soft);border:1px solid #eedcb3;color:#7a5a12;padding:10px 14px;border-radius:10px;font-size:13.5px;margin-bottom:14px}
@@ -2659,7 +2684,7 @@ function openSlip(empId, period){
   document.getElementById('slipBg').classList.add('show');
 }
 /* สร้าง HTML สลิป 1 คน — ใช้ทั้งดูรายคน และพิมพ์รวมทั้งสาขา (pageBreak = ขึ้นหน้าใหม่ต่อคน) */
-function buildSlip(e, period, pageBreak){
+function buildSlip(e, period, compact){
   const p = calcPay(e, period);
   const r = periodRange(period);
   const ss = empShiftsInPeriod(e, period);
@@ -2676,7 +2701,7 @@ function buildSlip(e, period, pageBreak){
   p.dedu.forEach(a=>dedRows.push([a.reason, +a.amount]));
 
   return `
-  <div class="slip"${pageBreak?' style="page-break-after:always"':''}>
+  <div class="slip${compact?' slip-sm':''}">
     <div class="slip-head">
       <div class="logo">🔥</div>
       <div style="flex:1">
@@ -2691,7 +2716,7 @@ function buildSlip(e, period, pageBreak){
     </div>
 
     <div class="slip-emp">
-      ${avatar(e, 56)}
+      ${avatar(e, compact?32:56)}
       <div class="kv" style="flex:1">
         <b>ชื่อ</b><span><b style="font-size:13px">${e.nick}</b> ${e.full||''}</span>
         <b>รหัส</b><span>${e.code}</span>
@@ -2807,10 +2832,15 @@ function printAllSlips(){
   if(!list.length) return toast('❌ ไม่มีพนักงานตามตัวกรองในงวดนี้');
   busy(true, 'กำลังสร้างสลิป '+list.length+' คน…');
   setTimeout(()=>{
-    document.getElementById('slipBody').innerHTML =
-      list.map(({e}, i)=>buildSlip(e, period, i < list.length-1)).join('') +
+    const pages = [];
+    for(let i=0; i<list.length; i+=2){
+      const a = buildSlip(list[i].e, period, true);
+      const b = list[i+1] ? '<div class="slip-cut"></div><div class="slip-half">'+buildSlip(list[i+1].e, period, true)+'</div>' : '';
+      pages.push('<div class="slip-page"><div class="slip-half">'+a+'</div>'+b+'</div>');
+    }
+    document.getElementById('slipBody').innerHTML = pages.join('') +
       `<div class="noprint" style="display:flex;gap:8px;align-items:center;justify-content:flex-end;padding:12px 20px;position:sticky;bottom:0;background:#fff;border-top:1px solid var(--line)">
-        <span class="muted" style="margin-right:auto">🧾 สลิป ${list.length} คน${bf?' · สาขา'+((BR[bf]||{}).t||bf):' · ทุกสาขา'} · คนละ 1 หน้า A4</span>
+        <span class="muted" style="margin-right:auto">🧾 สลิป ${list.length} คน${bf?' · สาขา'+((BR[bf]||{}).t||bf):' · ทุกสาขา'} · 2 คน/หน้า A4 (${pages.length} แผ่น) · ตัดตามเส้นประ</span>
         <button class="btn btn-light" onclick="closeModal('slipBg')">ปิด</button>
         <button class="btn btn-ember" onclick="window.print()">🖨️ พิมพ์ / บันทึก PDF ทั้งหมด</button>
       </div>`;
