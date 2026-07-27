@@ -236,16 +236,16 @@ tr.grp-dept td{background:#faf7f1;font-size:11.5px;font-weight:600;color:var(--i
   .slip .grid.g2{grid-template-columns:1fr 1fr}
   /* ขอบรวม 20 มม.: กระดาษ 10 มม. + ขอบในเนื้อหา 10 มม.
      เครื่องพิมพ์ที่กินขอบ ~10 มม. จะโดนแค่พื้นที่ว่าง เนื้อหาไม่ถูกตัด */
-  /* ขอบกระดาษ = 0 · คุมขอบทั้งหมดในเนื้อหาแทน (บน-ซ้าย-ขวา 20mm, ล่างไม่มี)
-     -> Margins ในหน้าต่างพิมพ์จะเลือก None หรือ Default ก็ได้ผลเท่ากัน ไม่เพี้ยนอีก
-     เส้นตัด: ขอบบน 20 + ครึ่งบน 127 + 1.5 = 148.5mm = กึ่งกลาง A4 พอดี
+  /* เว้นเท่าขอบตายของเครื่องพิมพ์พอดี: บน-ซ้าย-ขวา 6mm (ล่างไม่มี) · ขอบกระดาษ = 0
+     -> Margins ในหน้าต่างพิมพ์เลือก None หรือ Default ก็ได้ผลเท่ากัน
+     เส้นตัด: ขอบบน 6 + ครึ่งบน 141 + 1.5 = 148.5mm = กึ่งกลาง A4 พอดี
      สูงรวม 294mm (เผื่อ 3mm ท้ายกระดาษกันล้นหน้า) */
-  .slip:not(.slip-sm){padding:20mm 20mm 0}
-  .slip-page{height:294mm;padding:20mm 20mm 0;box-sizing:border-box;display:flex;flex-direction:column;
+  .slip:not(.slip-sm){padding:6mm 6mm 0}
+  .slip-page{height:294mm;padding:6mm 6mm 0;box-sizing:border-box;display:flex;flex-direction:column;
              page-break-after:always;page-break-inside:avoid}
   .slip-page:last-of-type{page-break-after:auto}
   .slip-half{min-height:0;overflow:hidden;flex:1 1 0}
-  .slip-page .slip-half:first-child{flex:0 0 127mm;height:127mm}
+  .slip-page .slip-half:first-child{flex:0 0 141mm;height:141mm}
   .slip-half .slip{page-break-inside:auto}
   .slip-cut{flex:0 0 auto;margin:1.5mm 0}
   @page{size:A4;margin:0}
