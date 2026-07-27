@@ -431,6 +431,9 @@ tr.grp-dept td{background:#faf7f1;font-size:11.5px;font-weight:600;color:var(--i
       <option value="">ทุกสาขา</option><option value="JJLP">ลาดพร้าว</option>
       <option value="JJRD">รัชดา</option><option value="OFFICE">ออฟฟิศ</option>
     </select>
+    <label style="margin:0;display:flex;align-items:center;gap:8px;font-size:14px">เริ่มหักตั้งแต่งวด:
+      <select id="depStartSel" onchange="saveSetting('dep_start', this.value)" style="width:auto;min-width:180px"></select>
+    </label>
     <select id="depStatus" onchange="renderDeposit()" style="width:auto;min-width:140px">
       <option value="">ทุกสถานะ</option><option value="pending">ยังไม่ครบ</option><option value="done">ครบแล้ว</option>
     </select>
@@ -942,7 +945,7 @@ const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 let settings = { cutoff:6, defaultWage:400, minFine:0, lateFine:0, loadMonths:8,
                  cutDay:25, payDay:5, advDay:15, advMax:3000, advRatio:0.5, singleFine:200, hourRule:'block', monthDiv:30,
                  hourlyStart:'18:00', hourlyEnd:'00:00', hourlyMax:6,
-                 mustWorkDays:'5,6,0', mustWorkFine:400 };
+                 mustWorkDays:'5,6,0', mustWorkFine:400, depStart:'' };
 let advances = [];
 let depositEntries = [];   // เงินประกัน: override รายงวด {id, empId, period, amount}
 let depReady = false;      // true เมื่อรัน jj_deposit.sql แล้ว
@@ -1069,7 +1072,8 @@ async function loadAll(){
       monthDiv:+(st.data.month_divisor??30),
       hourlyStart:(st.data.hourly_start||'18:00').slice(0,5), hourlyEnd:(st.data.hourly_end||'00:00').slice(0,5),
       hourlyMax:+(st.data.hourly_max??6),
-      mustWorkDays:st.data.must_work_days??'5,6,0', mustWorkFine:+(st.data.must_work_fine??400) };
+      mustWorkDays:st.data.must_work_days??'5,6,0', mustWorkFine:+(st.data.must_work_fine??400),
+      depStart:st.data.dep_start??'' };
 
     document.getElementById('setCutoff').value = settings.cutoff;
     document.getElementById('setMinFine').value = settings.minFine;
@@ -1574,6 +1578,7 @@ function depositCalc(emp, period){
   let collected = +(emp.depOpen||0), ded = 0, override = null;
   for(const pd of pds){
     if(period && pd > period) break;
+    if(settings.depStart && pd < settings.depStart) continue;   // เริ่มหักตั้งแต่งวดที่ตั้งไว้
     const ov = depositEntries.find(x=>x.empId===emp.id && x.period===pd);
     const hasWork = (shifts[emp.code]||[]).some(x=>periodOf(x.day)===pd);
     let d = ov ? Math.max(0, +ov.amount)
@@ -1632,11 +1637,19 @@ function editDeposit(empId, period){
 function renderDeposit(){
   const tbl = document.getElementById('depTable'); if(!tbl) return;
   const period = (document.getElementById('depPeriodSel')||{}).value || allPeriods()[0] || '';
+  const stSel = document.getElementById('depStartSel');
+  if(stSel){
+    const ps = allPeriods();
+    stSel.innerHTML = '<option value="">ทุกงวด (คิดย้อนหลัง)</option>' +
+      ps.map(p=>`<option value="${p}" ${p===settings.depStart?'selected':''}>${periodLabel(p)}</option>`).join('');
+    if(settings.depStart && !ps.includes(settings.depStart))
+      stSel.innerHTML += `<option value="${settings.depStart}" selected>${periodLabel(settings.depStart)}</option>`;
+  }
   const bf = document.getElementById('depBranch').value;
   const sf = document.getElementById('depStatus').value;
   const q  = (document.getElementById('depSearch').value||'').toLowerCase();
   document.getElementById('depInfo').innerHTML = depReady
-    ? `หักจากเงินเดือนอัตโนมัติทุกงวดตามช่อง <b>หัก/เดือน</b> จนสะสมครบ<b>เป้าหมาย</b> แล้วหยุดเอง ·
+    ? `${!settings.depStart? '<b style="color:var(--red)">⚠️ ยังไม่ได้ตั้ง "เริ่มหักตั้งแต่งวด" — ระบบกำลังคิดย้อนหลังทุกงวดเก่า ยอดสะสมอาจสูงเกินจริง แนะนำตั้งเป็นงวดแรกที่หักจริง</b><br>':''}หักจากเงินเดือนอัตโนมัติทุกงวดตามช่อง <b>หัก/เดือน</b> จนสะสมครบ<b>เป้าหมาย</b> แล้วหยุดเอง ·
        แก้เฉพาะงวดได้ที่ช่อง <b>หักงวดนี้</b> (หรือคลิกช่องประกันในหน้า 💰 สรุปเงินเดือน) ·
        คนที่เก็บมาก่อน/ครบแล้ว ใส่ยอดในช่อง <b>เก็บมาก่อน</b>`
     : '<b style="color:var(--red)">⚠️ ยังไม่ได้รัน jj_deposit.sql ใน Supabase SQL Editor — รันก่อน ถึงจะบันทึกข้อมูลเงินประกันได้</b>';
@@ -3629,7 +3642,7 @@ async function saveSetting(field, val){
             single_fine:'singleFine', cut_day:'cutDay', pay_day:'payDay', adv_day:'advDay',
             adv_max:'advMax', adv_ratio:'advRatio', hour_rule:'hourRule', month_divisor:'monthDiv',
             hourly_start:'hourlyStart', hourly_end:'hourlyEnd', hourly_max:'hourlyMax',
-            must_work_days:'mustWorkDays', must_work_fine:'mustWorkFine'}[field]] = val;
+            must_work_days:'mustWorkDays', must_work_fine:'mustWorkFine', dep_start:'depStart'}[field]] = val;
   const { error } = await db.from('payroll_settings').update({ [field]: val }).eq('id', 1);
   if(error) return dbErr(error,'บันทึกตั้งค่า');
   recomputeAll(); renderAll(); updPeriodHint(); toast('บันทึกแล้ว');
