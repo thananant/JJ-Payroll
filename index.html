@@ -504,6 +504,7 @@ tr.grp-dept td{background:#faf7f1;font-size:11.5px;font-weight:600;color:var(--i
     <div class="toolbar">
       <label style="margin:0;display:flex;align-items:center;gap:8px;font-size:14px">ปี:
         <select id="holiYear" onchange="renderHoli()" style="width:auto;min-width:110px"></select>
+        <button class="btn btn-light btn-sm" onclick="addHoliYear()" title="เพิ่มปีถัดไปเข้าลิสต์">＋ เพิ่มปี</button>
       </label>
       <span class="muted" id="holiCount"></span>
       <span style="flex:1"></span>
@@ -2711,13 +2712,24 @@ async function delAdj(id){
 }
 
 /* ================= HOLIDAYS PAGE ================= */
+let holiExtraYears = [];   // ปีที่กดเพิ่มเอง (คงอยู่จนกว่าจะรีเฟรช — พอบันทึกวันหยุดแล้วจะติดถาวรจากข้อมูล)
+function addHoliYear(){
+  const sel = document.getElementById('holiYear');
+  const ys = [...sel.options].map(o=>+o.value);
+  const next = String((ys.length? Math.max(...ys) : new Date().getFullYear()) + 1);
+  if(!holiExtraYears.includes(next)) holiExtraYears.push(next);
+  sel.dataset.pick = next;
+  renderHoli();
+  toast('เพิ่มปี ' + (+next + 543) + ' แล้ว — กด ＋ เพิ่มวันหยุด ใส่วันของปีนั้นได้เลย');
+}
 function renderHoli(){
-  const ys = [...new Set(Object.keys(holidays).map(d=>d.slice(0,4)))];
+  const ys = [...new Set([...Object.keys(holidays).map(d=>d.slice(0,4)), ...holiExtraYears])];
   const cy = String(new Date().getFullYear());
   if(!ys.includes(cy)) ys.push(cy);
   ys.sort().reverse();
-  const sel = document.getElementById('holiYear'); const cur = sel.value || cy;
+  const sel = document.getElementById('holiYear'); const cur = sel.dataset.pick || sel.value || cy;
   sel.innerHTML = ys.map(y=>`<option value="${y}" ${y===cur?'selected':''}>${+y+543} (${y})</option>`).join('');
+  delete sel.dataset.pick;
   const yr = sel.value;
 
   const list = Object.entries(holidays).filter(([d])=>d.startsWith(yr))
@@ -2746,7 +2758,8 @@ function openHoliForm(day){
   const h = day? holidays[day] : null;
   document.getElementById('holiTitle').textContent = h? 'แก้ไขวันหยุดพิเศษ' : 'เพิ่มวันหยุดพิเศษ';
   document.getElementById('hId').value = h? h.id : '';
-  document.getElementById('hDay').value = day || '';
+  const selYr = (document.getElementById('holiYear')||{}).value || String(new Date().getFullYear());
+  document.getElementById('hDay').value = day || (selYr === String(new Date().getFullYear()) ? '' : selYr + '-01-01');
   document.getElementById('hName').value = h? h.name : '';
   document.getElementById('hMult').value = h? h.mult : 2;
   document.getElementById('holiBg').classList.add('show');
