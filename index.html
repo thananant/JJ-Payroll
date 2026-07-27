@@ -2948,9 +2948,10 @@ function openTransferSummary(){
   </div>
   <div class="noprint" style="display:flex;gap:8px;justify-content:flex-end;padding:12px 20px">
     <button class="btn btn-light" onclick="closeModal('slipBg')">ปิด</button>
-    <button class="btn btn-ember" onclick="window.print()">🖨️ พิมพ์ / บันทึก PDF</button>
+    <button class="btn btn-ember" onclick="window.print()">🖨️ พิมพ์อีกครั้ง</button>
   </div>`;
   document.getElementById('slipBg').classList.add('show');
+  setTimeout(()=>window.print(), 400);   // เด้งหน้าต่างพิมพ์/บันทึก PDF ให้เลย
 }
 
 /* ---- พิมพ์สลิปทุกคนตามตัวกรองหน้าสรุปเงินเดือน (คนละ 1 หน้า A4) ---- */
@@ -2994,6 +2995,7 @@ function printAllSlips(){
       </div>`;
     busy(false);
     document.getElementById('slipBg').classList.add('show');
+    setTimeout(()=>window.print(), 500);   // เด้งหน้าต่างพิมพ์/บันทึก PDF ให้เลย
   }, 30);
 }
 
