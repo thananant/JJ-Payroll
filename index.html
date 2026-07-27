@@ -43,7 +43,7 @@ aside nav button:hover:not(.active){color:var(--brand-deep);background:var(--emb
 .side-foot{padding:12px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:8px}
 .side-foot .btn{width:100%;justify-content:flex-start}
 .content{flex:1;min-width:0}
-@media(max-width:860px){
+@media screen and (max-width:860px){
   .layout{flex-direction:column}
   aside{width:100%;height:auto;position:static}
   aside nav{flex-direction:row;overflow-x:auto;padding:6px 10px}
@@ -229,6 +229,8 @@ tr.grp-dept td{background:#faf7f1;font-size:11.5px;font-weight:600;color:var(--i
   #slipBg .close, #slipBg .noprint{display:none!important}
   *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
   .slip{page-break-inside:avoid}
+  .slip-cols{display:flex;flex-direction:row;gap:8px}
+  .slip .grid.g2{grid-template-columns:1fr 1fr}
   /* ขอบกระดาษ 20 มม. ทุกด้าน -> พื้นที่พิมพ์ A4 = 170×257 มม. -> ครึ่งละ 127 มม. */
   .slip-page{height:257mm;page-break-after:always;page-break-inside:avoid}
   .slip-page:last-of-type{page-break-after:auto}
