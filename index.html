@@ -363,6 +363,7 @@ tr.grp-dept td{background:#faf7f1;font-size:11.5px;font-weight:600;color:var(--i
     </select>
     <span style="flex:1"></span>
     <button class="btn btn-light" onclick="exportPayrollXlsx()">📤 Export Excel</button>
+    <button class="btn btn-ember" onclick="printAllSlips()">🖨️ พิมพ์สลิปทั้งหมด</button>
   </div>
   <div class="muted" id="payPeriodInfo" style="margin-bottom:10px"></div>
   <div class="stats" id="payStats"></div>
@@ -2650,6 +2651,15 @@ function openSlip(empId, period){
   const e = employees.find(x=>x.id===empId);
   if(!period) period = document.getElementById('periodSel').value || allPeriods()[0];
   if(!e || !period) return toast('❌ ไม่มีข้อมูล');
+  document.getElementById('slipBody').innerHTML = buildSlip(e, period, false) +
+    `<div class="noprint" style="display:flex;gap:8px;justify-content:flex-end;padding:0 20px 20px">
+      <button class="btn btn-light" onclick="closeModal('slipBg')">ปิด</button>
+      <button class="btn btn-ember" onclick="window.print()">🖨️ พิมพ์ / บันทึก PDF</button>
+    </div>`;
+  document.getElementById('slipBg').classList.add('show');
+}
+/* สร้าง HTML สลิป 1 คน — ใช้ทั้งดูรายคน และพิมพ์รวมทั้งสาขา (pageBreak = ขึ้นหน้าใหม่ต่อคน) */
+function buildSlip(e, period, pageBreak){
   const p = calcPay(e, period);
   const r = periodRange(period);
   const ss = empShiftsInPeriod(e, period);
@@ -2665,8 +2675,8 @@ function openSlip(empId, period){
   if(p.mou && p.mou.ded) dedRows.push([`ผ่อนคืนเงินยืม MOU (ผ่อนแล้ว ${THB(p.mou.collected)} / ${THB(p.mou.target)}${p.mou.done?' — ครบแล้ว':''})`, p.mou.ded]);
   p.dedu.forEach(a=>dedRows.push([a.reason, +a.amount]));
 
-  document.getElementById('slipBody').innerHTML = `
-  <div class="slip">
+  return `
+  <div class="slip"${pageBreak?' style="page-break-after:always"':''}>
     <div class="slip-head">
       <div class="logo">🔥</div>
       <div style="flex:1">
@@ -2768,12 +2778,45 @@ function openSlip(empId, period){
       <div>ลงชื่อผู้รับเงิน (${e.nick})</div>
     </div>
 
-    <div class="noprint" style="display:flex;gap:8px;justify-content:flex-end;margin-top:20px">
-      <button class="btn btn-light" onclick="closeModal('slipBg')">ปิด</button>
-      <button class="btn btn-ember" onclick="window.print()">🖨️ พิมพ์ / บันทึก PDF</button>
-    </div>
   </div>`;
-  document.getElementById('slipBg').classList.add('show');
+}
+/* ---- พิมพ์สลิปทุกคนตามตัวกรองหน้าสรุปเงินเดือน (คนละ 1 หน้า A4) ---- */
+function printAllSlips(){
+  const period = document.getElementById('periodSel').value;
+  if(!period) return toast('❌ ยังไม่มีข้อมูล');
+  const bf = (document.getElementById('payBranch')||{}).value || '';
+  const q  = (document.getElementById('paySearch').value||'').toLowerCase();
+  const df = document.getElementById('payDept').value;
+  const pf = document.getElementById('payPos').value;
+  const mf = document.getElementById('payMode').value;
+  const ff = document.getElementById('payFlag').value;
+  const flagOk = (p) => !ff ||
+    (ff==='single' && p.singleCount>0) || (ff==='late' && p.missMin>0) ||
+    (ff==='adv' && p.advSum>0) || (ff==='bonus' && (p.holiBonus>0||p.noOffBonus>0)) ||
+    (ff==='cross' && p.crossDays.length>0) || (ff==='must' && p.mustViol.length>0) ||
+    (ff==='dep' && p.dep.ded>0) || (ff==='mou' && p.mou.ded>0);
+  const list = employees
+    .filter(e=>(e.active || empShiftsInPeriod(e,period).length) &&
+               (!bf || e.branch===bf) && (!df || e.dept===df) && (!pf || e.position===pf) &&
+               (!mf || e.mode===mf) && empMatch(e, q))
+    .filter(e=>empShiftsInPeriod(e,period).length > 0)
+    .map(e=>({e, p:calcPay(e,period)}))
+    .filter(x=>flagOk(x.p))
+    .sort((a,b)=> (a.e.branch||'').localeCompare(b.e.branch||'') ||
+                  (a.e.dept||'').localeCompare(b.e.dept||'','th') || a.e.nick.localeCompare(b.e.nick,'th'));
+  if(!list.length) return toast('❌ ไม่มีพนักงานตามตัวกรองในงวดนี้');
+  busy(true, 'กำลังสร้างสลิป '+list.length+' คน…');
+  setTimeout(()=>{
+    document.getElementById('slipBody').innerHTML =
+      list.map(({e}, i)=>buildSlip(e, period, i < list.length-1)).join('') +
+      `<div class="noprint" style="display:flex;gap:8px;align-items:center;justify-content:flex-end;padding:12px 20px;position:sticky;bottom:0;background:#fff;border-top:1px solid var(--line)">
+        <span class="muted" style="margin-right:auto">🧾 สลิป ${list.length} คน${bf?' · สาขา'+((BR[bf]||{}).t||bf):' · ทุกสาขา'} · คนละ 1 หน้า A4</span>
+        <button class="btn btn-light" onclick="closeModal('slipBg')">ปิด</button>
+        <button class="btn btn-ember" onclick="window.print()">🖨️ พิมพ์ / บันทึก PDF ทั้งหมด</button>
+      </div>`;
+    busy(false);
+    document.getElementById('slipBg').classList.add('show');
+  }, 30);
 }
 
 /* ================= ADVANCE PAGE ================= */
