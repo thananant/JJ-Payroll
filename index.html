@@ -2879,8 +2879,8 @@ function openTransferSummary(){
   const nPeople = shared.reduce((a,g)=>a + g.rows.length, 0);
   const empLine = x => `<b style="color:var(--ember-deep)">${x.e.nick}</b> <span class="muted">${x.e.full||''} · ${(BR[x.e.branch]||{}).t||'–'}</span>`;
 
-  const page = (g, last) => `
-  <div class="slip"${last?'':' style="page-break-after:always"'}>
+  const card = (g) => `
+  <div class="slip slip-sm">
     <div class="slip-head">
       <div class="logo">🏦</div>
       <div style="flex:1">
@@ -2926,10 +2926,15 @@ function openTransferSummary(){
     </div>
   </div>`;
 
-  document.getElementById('slipBody').innerHTML =
-    shared.map((g,i)=>page(g, i === shared.length-1)).join('') +
+  const pages = [];
+  for(let i=0; i<shared.length; i+=2){
+    const a = card(shared[i]);
+    const b = shared[i+1] ? '<div class="slip-cut"></div><div class="slip-half">'+card(shared[i+1])+'</div>' : '';
+    pages.push('<div class="slip-page"><div class="slip-half">'+a+'</div>'+b+'</div>');
+  }
+  document.getElementById('slipBody').innerHTML = pages.join('') +
     `<div class="noprint" style="display:flex;gap:8px;align-items:center;justify-content:flex-end;padding:12px 20px;position:sticky;bottom:0;background:#fff;border-top:1px solid var(--line)">
-      <span class="muted" style="margin-right:auto">🏦 ${shared.length} บัญชี · ${nPeople} คน · รวม ${THB2(total)} บาท · บัญชีละ 1 หน้า A4</span>
+      <span class="muted" style="margin-right:auto">🏦 ${shared.length} บัญชี · ${nPeople} คน · รวม ${THB2(total)} บาท · 2 บัญชี/หน้า A4 (${pages.length} แผ่น) · ตัดตามเส้นประ</span>
       <button class="btn btn-light" onclick="closeModal('slipBg')">ปิด</button>
       <button class="btn btn-ember" onclick="window.print()">🖨️ พิมพ์อีกครั้ง</button>
     </div>`;
