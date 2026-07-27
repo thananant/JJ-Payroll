@@ -2879,13 +2879,13 @@ function openTransferSummary(){
   const nPeople = shared.reduce((a,g)=>a + g.rows.length, 0);
   const empLine = x => `<b style="color:var(--ember-deep)">${x.e.nick}</b> <span class="muted">${x.e.full||''} · ${(BR[x.e.branch]||{}).t||'–'}</span>`;
 
-  document.getElementById('slipBody').innerHTML = `
-  <div class="slip">
+  const page = (g, last) => `
+  <div class="slip"${last?'':' style="page-break-after:always"'}>
     <div class="slip-head">
       <div class="logo">🏦</div>
       <div style="flex:1">
-        <h1>บัญชีที่รับเงินเดือนมากกว่า 1 คน</h1>
-        <div class="co">จริงใจหมูกระทะ · ${bf? 'สาขา'+((BR[bf]||{}).t||bf) : 'ทุกสาขา'} · ${shared.length} บัญชี · ${nPeople} คน</div>
+        <h1>ใบสรุปโอนเงินเดือน — บัญชีรับหลายคน</h1>
+        <div class="co">จริงใจหมูกระทะ · บริษัท พากันรวย ฟู้ดส์ คอร์ปอเรชั่น จำกัด</div>
       </div>
       <div style="text-align:right;font-size:11.5px">
         <div style="font-family:'Prompt',sans-serif;font-weight:600;font-size:13px">${periodLabel(period)}</div>
@@ -2894,29 +2894,45 @@ function openTransferSummary(){
       </div>
     </div>
 
-    ${shared.map(g=>`
-      <div style="border:1.5px solid #f3c4b5;background:#fff8f5;border-radius:10px;padding:10px 14px;margin-top:10px;page-break-inside:avoid">
-        <div style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap">
-          <b style="font-family:'Prompt',sans-serif;font-size:13px">${g.bank||'ไม่ระบุธนาคาร'} · ${g.acc}</b>
-          ${g.name? '<span class="muted">('+g.name+')</span>':''}
-          <span class="chip chip-red">รับ ${g.rows.length} คน</span>
-          <span style="flex:1"></span>
-          <b style="color:var(--red)">โอนเข้าบัญชีนี้รวม ${THB2(sumOf(g.rows))} บาท</b>
-        </div>
-        <table style="margin-top:6px"><tbody>
-          ${g.rows.map(x=>`<tr><td>${empLine(x)}</td><td class="num" style="width:130px">${THB2(x.p.net)}</td></tr>`).join('')}
-        </tbody></table>
-      </div>`).join('')}
+    <div style="border:1.5px solid #f3c4b5;background:#fff8f5;border-radius:12px;padding:14px 18px;margin-top:14px">
+      <div style="display:flex;gap:10px;align-items:baseline;flex-wrap:wrap">
+        <b style="font-family:'Prompt',sans-serif;font-size:16px">${g.bank||'ไม่ระบุธนาคาร'}</b>
+        <b style="font-size:16px;font-variant-numeric:tabular-nums">${g.acc}</b>
+        ${g.name? '<span class="muted" style="font-size:13px">('+g.name+')</span>':''}
+        <span class="chip chip-red">รับเงินเดือน ${g.rows.length} คน</span>
+      </div>
+      <table style="margin-top:10px;font-size:12px"><thead>
+        <tr><th>#</th><th>พนักงาน</th><th>สาขา</th><th>แผนก / ตำแหน่ง</th><th class="num">ยอดสุทธิ (บาท)</th></tr>
+      </thead><tbody>
+        ${g.rows.map((x,i)=>`<tr>
+          <td>${i+1}</td>
+          <td><b style="color:var(--ember-deep)">${x.e.nick}</b> <span class="muted">${x.e.full||''}</span></td>
+          <td>${(BR[x.e.branch]||{}).t||'–'}</td>
+          <td><span class="muted">${x.e.dept||'–'}${x.e.position?' · '+x.e.position:''}</span></td>
+          <td class="num"><b>${THB2(x.p.net)}</b></td>
+        </tr>`).join('')}
+      </tbody></table>
+    </div>
 
     <div class="slip-total">
-      <div><div style="font-size:11.5px;color:#b9ad9f">รวมยอดโอนของบัญชีร่วมทั้งหมด (${shared.length} บัญชี · ${nPeople} คน)</div></div>
-      <div class="n">${THB2(total)} ฿</div>
+      <div><div style="font-size:11.5px;color:#b9ad9f">ยอดโอนเข้าบัญชีนี้รวม · จ่ายวันที่ ${dayLabel(r.pay)}</div>
+        <div style="font-size:11px;color:#8a8076">${g.rows.map(x=>x.e.nick+' '+THB2(x.p.net)).join(' + ')}</div></div>
+      <div class="n">${THB2(sumOf(g.rows))} ฿</div>
     </div>
-  </div>
-  <div class="noprint" style="display:flex;gap:8px;justify-content:flex-end;padding:12px 20px">
-    <button class="btn btn-light" onclick="closeModal('slipBg')">ปิด</button>
-    <button class="btn btn-ember" onclick="window.print()">🖨️ พิมพ์อีกครั้ง</button>
+
+    <div class="slip-sign">
+      <div>ลงชื่อผู้โอนเงิน</div>
+      <div>ลงชื่อเจ้าของบัญชีรับทราบ${g.name?' ('+g.name+')':''}</div>
+    </div>
   </div>`;
+
+  document.getElementById('slipBody').innerHTML =
+    shared.map((g,i)=>page(g, i === shared.length-1)).join('') +
+    `<div class="noprint" style="display:flex;gap:8px;align-items:center;justify-content:flex-end;padding:12px 20px;position:sticky;bottom:0;background:#fff;border-top:1px solid var(--line)">
+      <span class="muted" style="margin-right:auto">🏦 ${shared.length} บัญชี · ${nPeople} คน · รวม ${THB2(total)} บาท · บัญชีละ 1 หน้า A4</span>
+      <button class="btn btn-light" onclick="closeModal('slipBg')">ปิด</button>
+      <button class="btn btn-ember" onclick="window.print()">🖨️ พิมพ์อีกครั้ง</button>
+    </div>`;
   document.getElementById('slipBg').classList.add('show');
   setTimeout(()=>window.print(), 400);   // เด้งหน้าต่างพิมพ์/บันทึก PDF ให้เลย
 }
