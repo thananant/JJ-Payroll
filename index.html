@@ -624,9 +624,9 @@ tr.grp-dept td{background:#faf7f1;font-size:11.5px;font-weight:600;color:var(--i
         </div>
       </div>
       <div><label>ประเภทค่าแรง</label>
-        <select id="fType"><option value="daily">รายวัน</option><option value="monthly">รายเดือน</option></select>
+        <select id="fType"><option value="monthly" selected>รายเดือน</option><option value="daily">รายวัน</option></select>
       </div>
-      <div><label id="fRateLabel">อัตราค่าแรง (บาท)</label><input type="number" id="fRate" value="400"></div>
+      <div><label id="fRateLabel">อัตราค่าแรง (บาท)</label><input type="number" id="fRate" value="12000"></div>
     </div>
     <div class="section-title" style="margin-bottom:10px">ข้อมูลการทำงาน</div>
     <div class="grid g2">
@@ -2171,8 +2171,8 @@ function openEmpForm(id){
   document.getElementById('fPhotoPreview').innerHTML = (e && e.photo)
     ? `<img src="${e.photo}" style="width:56px;height:56px;border-radius:14px;object-fit:cover">` : '';
   document.getElementById('fPhotoClear').style.display = (e && e.photo) ? '' : 'none';
-  document.getElementById('fType').value = e? e.type : 'daily';
-  document.getElementById('fRate').value = e? e.rate : settings.defaultWage;
+  document.getElementById('fType').value = e? e.type : 'monthly';       // พนักงานใหม่: รายเดือน
+  document.getElementById('fRate').value = e? e.rate : 12000;            // พนักงานใหม่: 12,000
   document.getElementById('fMode').value = e? (e.mode||'shift') : 'shift';
   document.getElementById('fShift').value = (e && e.shiftId)? e.shiftId : '';
   document.getElementById('fTarget').value = e? (e.target||10) : 10;
