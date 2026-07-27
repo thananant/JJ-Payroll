@@ -595,22 +595,22 @@ tr.grp-dept td{background:#faf7f1;font-size:11.5px;font-weight:600;color:var(--i
     <h2 class="font-display" id="formTitle">เพิ่มพนักงาน</h2>
     <p class="muted" style="margin-bottom:16px">ข้อมูลพื้นฐาน ค่าแรง และรูปแบบการทำงาน</p>
     <input type="hidden" id="fId">
+    <div class="section-title" style="margin-top:12px;margin-bottom:10px">ข้อมูลพนักงาน</div>
     <div class="grid g2">
       <div><label>ชื่อเล่น *</label><input id="fNick"></div>
       <div><label>ชื่อ-นามสกุล</label><input id="fFull"></div>
       <div><label>รหัสพนักงาน (จากเครื่องสแกน)</label><input id="fCode"></div>
-      <div><label>สาขาสังกัด (fix — ระบบจะจำสาขานี้ถาวร)</label>
-        <select id="fBranch">
-          <option value="">– อัตโนมัติตามแผนก –</option>
-          <option value="JJLP">ลาดพร้าว (JJLP)</option>
-          <option value="JJRD">รัชดา (JJRD)</option>
-          <option value="OFFICE">ส่วนกลาง / ออฟฟิศ</option>
-        </select></div>
-      <div><label>แผนก</label>
-        <select id="fDept" onchange="fillFormPos()"></select></div>
-      <div><label>ตำแหน่ง <span class="muted" style="font-weight:400">(ตามแผนกที่เลือก)</span></label>
-        <select id="fPos"></select></div>
-      <datalist id="deptList"></datalist><datalist id="posList"></datalist>
+      <div><label>วันเกิด</label><input type="date" id="fBirth"></div>
+      <div><label>เบอร์โทร</label><input type="tel" id="fPhone" placeholder="เช่น 081-234-5678"></div>
+      <div><label>ธนาคารสำหรับโอนเงินเดือน</label>
+        <input id="fBank" list="bankList" placeholder="เลือกหรือพิมพ์เอง">
+        <datalist id="bankList">
+          <option>กสิกรไทย</option><option>ไทยพาณิชย์</option><option>กรุงเทพ</option>
+          <option>กรุงไทย</option><option>กรุงศรี</option><option>ทหารไทยธนชาต (ttb)</option>
+          <option>ออมสิน</option><option>พร้อมเพย์</option><option>เงินสด</option>
+        </datalist></div>
+      <div><label>เลขบัญชี</label><input id="fBankAcc" inputmode="numeric" placeholder="เลขบัญชี / เบอร์พร้อมเพย์"></div>
+      <div><label>ชื่อบัญชี</label><input id="fBankAccName" placeholder="ชื่อเจ้าของบัญชี"></div>
       <div><label>รูปพนักงาน (ใส่หรือไม่ก็ได้)</label>
         <div style="display:flex;gap:10px;align-items:center">
           <div id="fPhotoPreview"></div>
@@ -626,6 +626,21 @@ tr.grp-dept td{background:#faf7f1;font-size:11.5px;font-weight:600;color:var(--i
         <select id="fType"><option value="daily">รายวัน</option><option value="monthly">รายเดือน</option></select>
       </div>
       <div><label id="fRateLabel">อัตราค่าแรง (บาท)</label><input type="number" id="fRate" value="400"></div>
+    </div>
+    <div class="section-title" style="margin-bottom:10px">ข้อมูลการทำงาน</div>
+    <div class="grid g2">
+      <div><label>สาขาสังกัด (fix — ระบบจะจำสาขานี้ถาวร)</label>
+        <select id="fBranch">
+          <option value="">– อัตโนมัติตามแผนก –</option>
+          <option value="JJLP">ลาดพร้าว (JJLP)</option>
+          <option value="JJRD">รัชดา (JJRD)</option>
+          <option value="OFFICE">ส่วนกลาง / ออฟฟิศ</option>
+        </select></div>
+      <div><label>แผนก</label>
+        <select id="fDept" onchange="fillFormPos()"></select></div>
+      <div><label>ตำแหน่ง <span class="muted" style="font-weight:400">(ตามแผนกที่เลือก)</span></label>
+        <select id="fPos"></select></div>
+      <datalist id="deptList"></datalist><datalist id="posList"></datalist>
     </div>
     <div class="section-title" style="margin-bottom:10px">รูปแบบการทำงาน</div>
     <div class="grid g2">
@@ -883,6 +898,7 @@ let mouLoans = [];         // เงินยืม MOU รายคน
 let mouEntries = [];       // override การหัก MOU รายงวด
 let docBorrows = [];       // สมุดยืม-คืนเอกสาร
 let mouReady = false;      // true เมื่อรัน jj_mou.sql แล้ว
+let empInfoReady = false;  // true เมื่อรัน jj_employee_info.sql แล้ว (วันเกิด/เบอร์/บัญชี)
 let holidays = {};   // 'YYYY-MM-DD' -> {name, mult}
 let devBranch = {};  // device_sn -> branch
 let orgPos = [];     // โครงสร้าง {id, dept, name} จากตาราง org_positions
@@ -903,7 +919,9 @@ const fromDbEmp = r => ({ id:r.id, code:r.code, nick:r.nick, full:r.full_name||'
   type:r.wage_type||'daily', rate:+r.rate, mode:r.work_mode||'shift', shiftId:r.shift_id,
   target:+(r.target_hours||10), active:!!r.active,
   depTarget:+(r.deposit_target??5000), depMonthly:+(r.deposit_monthly??500),
-  depOpen:+(r.deposit_opening??0), depOn:r.deposit_on!==false });
+  depOpen:+(r.deposit_opening??0), depOn:r.deposit_on!==false,
+  birth:r.birth_date||'', phone:r.phone||'', bankName:r.bank_name||'',
+  bankAcc:r.bank_account||'', bankAccName:r.bank_account_name||'' });
 const toDbEmp = e => ({ code:e.code, nick:e.nick, full_name:e.full||'', dept:e.dept||'',
   branch:e.branch||'', position:e.position||'', photo_url:e.photo||null,
   off_count:e.offCount||0, off_weekdays:e.offWd||'', holiday_pay:!!e.holidayPay,
@@ -911,7 +929,9 @@ const toDbEmp = e => ({ code:e.code, nick:e.nick, full_name:e.full||'', dept:e.d
   wage_type:e.type, rate:e.rate, work_mode:e.mode, shift_id:e.shiftId,
   target_hours:e.target, active:!!e.active,
   ...(depReady ? { deposit_target:e.depTarget??5000, deposit_monthly:e.depMonthly??500,
-                   deposit_opening:e.depOpen??0, deposit_on:e.depOn!==false } : {}) });
+                   deposit_opening:e.depOpen??0, deposit_on:e.depOn!==false } : {}),
+  ...(empInfoReady ? { birth_date:e.birth||null, phone:e.phone||'', bank_name:e.bankName||'',
+                       bank_account:e.bankAcc||'', bank_account_name:e.bankAccName||'' } : {}) });
 const fromDbAdv = r => ({ id:r.id, empId:r.employee_id, period:r.period, amount:+r.amount,
   date:r.taken_date, note:r.note||'' });
 const fromDbShift = r => ({ id:r.id, name:r.name, start:String(r.start_time).slice(0,5),
@@ -985,6 +1005,7 @@ async function loadAll(){
 
     shiftDefs = (sh.data||[]).map(fromDbShift);
     employees = (em.data||[]).map(fromDbEmp);
+    empInfoReady = !!((em.data||[])[0] && 'birth_date' in em.data[0]);
     adjustments = (ad.data||[]).map(fromDbAdj);
     advances = (av.data||[]).map(fromDbAdv);
     if(st.data) settings = { ...settings,
@@ -2130,6 +2151,11 @@ function openEmpForm(id){
   document.getElementById('fNick').value = e? e.nick : '';
   document.getElementById('fFull').value = e? e.full : '';
   document.getElementById('fCode').value = e? e.code : '';
+  document.getElementById('fBirth').value = e? (e.birth||'') : '';
+  document.getElementById('fPhone').value = e? (e.phone||'') : '';
+  document.getElementById('fBank').value = e? (e.bankName||'') : '';
+  document.getElementById('fBankAcc').value = e? (e.bankAcc||'') : '';
+  document.getElementById('fBankAccName').value = e? (e.bankAccName||'') : '';
   document.getElementById('fBranch').value = e? (e.branch||'') : '';
   const curDept = e? (e.dept||'') : '';
   const depts = orgDepts();
@@ -2173,6 +2199,11 @@ async function saveEmpForm(){
   const data = {
     nick, full: document.getElementById('fFull').value.trim(),
     code: document.getElementById('fCode').value.trim() || ('M'+Date.now()),
+    birth: document.getElementById('fBirth').value || '',
+    phone: document.getElementById('fPhone').value.trim(),
+    bankName: document.getElementById('fBank').value.trim(),
+    bankAcc: document.getElementById('fBankAcc').value.trim(),
+    bankAccName: document.getElementById('fBankAccName').value.trim(),
     dept: document.getElementById('fDept').value.trim(),
     branch: document.getElementById('fBranch').value,
     position: document.getElementById('fPos').value.trim(),
@@ -2214,6 +2245,8 @@ async function saveEmpForm(){
   data.hourlyWindow = document.getElementById('fHourlyWindow').value !== '0';
   data.mustWorkExempt = document.getElementById('fMustWorkEx').checked;
   if(ot==='weekly' && !data.offWd) return toast('❌ เลือกวันหยุดประจำสัปดาห์อย่างน้อย 1 วัน');
+  if(!empInfoReady && (data.birth||data.phone||data.bankName||data.bankAcc||data.bankAccName))
+    toast('⚠️ วันเกิด/เบอร์/บัญชี ยังไม่ถูกบันทึก — ต้องรัน jj_employee_info.sql ใน Supabase ก่อน');
   busy(true,'กำลังบันทึก…');
   try{
     if(id){
@@ -2374,6 +2407,8 @@ function renderDetail(){
       ${modeLabel(e)}
       ${e.type==='monthly'?'<span class="chip chip-blue">รายเดือน '+THB(e.rate)+' บ.</span>':'<span class="chip chip-gray">รายวัน '+THB(e.rate)+' บ.</span>'}
       <span class="muted">รหัส ${e.code}</span>
+      ${e.phone? '<span class="muted">📞 '+e.phone+'</span>':''}
+      ${e.bankAcc? '<span class="muted">🏦 '+(e.bankName?e.bankName+' ':'')+e.bankAcc+'</span>':''}
       <span style="flex:1"></span>
       <button class="btn btn-light btn-sm" onclick="openEmpForm(${e.id})">✎ แก้ไขข้อมูล</button>
       <button class="btn btn-ember btn-sm" onclick="openSlip(${e.id},'${period}')">🧾 ใบสรุปเงินเดือน</button>
@@ -2658,6 +2693,7 @@ function openSlip(empId, period){
         <b>รูปแบบงาน</b><span>${isHr?'จ่ายตามชั่วโมงเต็ม':isH?'นับชั่วโมง (เป้า '+(e.target||10)+' ชม./วัน)':'เข้ากะ'}</span>
         <b>วันทำงาน</b><span>${p.days} วัน · ${p.hours.toFixed(1)} ชม.${isHr?' (นับได้ '+p.fullHrs+' ชม.)':''}</span>
         <b>สาขาที่ทำงาน</b><span>${Object.entries(p.byBranch).map(([b,n])=>((BR[b]||{}).t||b)+' '+n+' วัน').join(' · ')||'–'}${p.crossDays.length?' <b style="color:#6741d9">(ข้ามสาขา '+p.crossDays.length+' วัน)</b>':''}</span>
+        ${e.bankAcc? '<b>โอนเข้า</b><span>'+(e.bankName?e.bankName+' ':'')+e.bankAcc+(e.bankAccName?' ('+e.bankAccName+')':'')+'</span>':''}
         <b>ออกเอกสาร</b><span>${dayLabel(localYMD(new Date()))}</span>
       </div>
     </div>
@@ -3324,7 +3360,7 @@ function exportPayrollXlsx(){
   if(!period) return toast('❌ ยังไม่มีข้อมูล');
   const bf2 = (document.getElementById('payBranch')||{}).value||'';
   const df2 = (document.getElementById('payDept')||{}).value||'';
-  const rows = [['ชื่อเล่น','ชื่อ-นามสกุล','สาขา','แผนก','ตำแหน่ง','รูปแบบ','ประเภท','อัตรา','วันทำงาน','ชั่วโมง','สาย(ครั้ง)','สาย(นาที)','ออกก่อน(นาที)','ชม.ขาด(นาที)','ชม.เต็ม(รายชั่วโมง)','ไม่หยุด(วัน)','เบี้ยไม่หยุด','วันหยุดพิเศษ(ได้)','เบี้ยวันหยุด','ข้ามสาขา(วัน)','สาขาที่ทำงาน','ลืมตอก(ครั้ง)','ลืมตอก(วันที่)','หยุดวันห้ามหยุด','เบิกกลางเดือน','ประกันงวดนี้','ประกันสะสม','ประกันคงเหลือ','MOU งวดนี้','MOU คงเหลือ','ค่าแรง','เพิ่ม','หัก','สุทธิ']];
+  const rows = [['ชื่อเล่น','ชื่อ-นามสกุล','สาขา','แผนก','ตำแหน่ง','รูปแบบ','ประเภท','อัตรา','วันทำงาน','ชั่วโมง','สาย(ครั้ง)','สาย(นาที)','ออกก่อน(นาที)','ชม.ขาด(นาที)','ชม.เต็ม(รายชั่วโมง)','ไม่หยุด(วัน)','เบี้ยไม่หยุด','วันหยุดพิเศษ(ได้)','เบี้ยวันหยุด','ข้ามสาขา(วัน)','สาขาที่ทำงาน','ลืมตอก(ครั้ง)','ลืมตอก(วันที่)','หยุดวันห้ามหยุด','เบิกกลางเดือน','ประกันงวดนี้','ประกันสะสม','ประกันคงเหลือ','MOU งวดนี้','MOU คงเหลือ','ค่าแรง','เพิ่ม','หัก','สุทธิ','เบอร์โทร','ธนาคาร','เลขบัญชี','ชื่อบัญชี']];
   employees.filter(e=>(e.active || empShiftsInPeriod(e,period).length) &&
                       (!bf2||e.branch===bf2) && (!df2||e.dept===df2)).forEach(e=>{
     const p = calcPay(e,period);
@@ -3337,10 +3373,11 @@ function exportPayrollXlsx(){
       p.crossDays.length||'', Object.entries(p.byBranch).map(([b,n])=>((BR[b]||{}).t||b)+':'+n).join(' '),
       p.singleCount, p.singleDays.map(s=>dayLabel(s.day)+' '+singleLabel(s.singleKind)).join(', '),
       p.mustViol.length? p.mustViol.map(v=>dayLabel(v.day)).join(', ')+' (-'+THB(p.mustFine)+')' : '',
-      p.advSum, p.dep.ded||'', p.dep.collected||'', p.dep.remain||'', p.mou.ded||'', p.mou.remain||'', p.base, p.addSum, p.deduSum, p.net]);
+      p.advSum, p.dep.ded||'', p.dep.collected||'', p.dep.remain||'', p.mou.ded||'', p.mou.remain||'', p.base, p.addSum, p.deduSum, p.net,
+      e.phone||'', e.bankName||'', e.bankAcc||'', e.bankAccName||'']);
   });
   const ws = XLSX.utils.aoa_to_sheet(rows);
-  ws['!cols'] = [{wch:10},{wch:22},{wch:10},{wch:14},{wch:14},{wch:13},{wch:9},{wch:8},{wch:9},{wch:8},{wch:9},{wch:9},{wch:11},{wch:12},{wch:11},{wch:11},{wch:13},{wch:14},{wch:11},{wch:12},{wch:22},{wch:11},{wch:30},{wch:24},{wch:12},{wch:11},{wch:11},{wch:12},{wch:11},{wch:12},{wch:10},{wch:8},{wch:8},{wch:10}];
+  ws['!cols'] = [{wch:10},{wch:22},{wch:10},{wch:14},{wch:14},{wch:13},{wch:9},{wch:8},{wch:9},{wch:8},{wch:9},{wch:9},{wch:11},{wch:12},{wch:11},{wch:11},{wch:13},{wch:14},{wch:11},{wch:12},{wch:22},{wch:11},{wch:30},{wch:24},{wch:12},{wch:11},{wch:11},{wch:12},{wch:11},{wch:12},{wch:10},{wch:8},{wch:8},{wch:10},{wch:12},{wch:14},{wch:16},{wch:18}];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Payroll '+period);
   XLSX.writeFile(wb, 'payroll_'+period+'.xlsx');
