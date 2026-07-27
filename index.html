@@ -229,11 +229,12 @@ tr.grp-dept td{background:#faf7f1;font-size:11.5px;font-weight:600;color:var(--i
   #slipBg .close, #slipBg .noprint{display:none!important}
   *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
   .slip{page-break-inside:avoid}
-  .slip-page{height:277mm;page-break-after:always;page-break-inside:avoid}
+  /* ขอบกระดาษ 20 มม. ทุกด้าน -> พื้นที่พิมพ์ A4 = 170×257 มม. -> ครึ่งละ 127 มม. */
+  .slip-page{height:257mm;page-break-after:always;page-break-inside:avoid}
   .slip-page:last-of-type{page-break-after:auto}
-  .slip-half{height:137mm;overflow:hidden}
+  .slip-half{height:127mm;overflow:hidden}
   .slip-cut{margin:1.5mm 0}
-  @page{size:A4;margin:9mm}
+  @page{size:A4;margin:20mm}
 }
 .warn-note{background:var(--amber-soft);border:1px solid #eedcb3;color:#7a5a12;padding:10px 14px;border-radius:10px;font-size:13.5px;margin-bottom:14px}
 </style>
