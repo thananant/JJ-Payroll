@@ -234,12 +234,17 @@ tr.grp-dept td{background:#faf7f1;font-size:11.5px;font-weight:600;color:var(--i
   .slip{page-break-inside:avoid}
   .slip-cols{display:flex;flex-direction:row;gap:8px}
   .slip .grid.g2{grid-template-columns:1fr 1fr}
-  /* ขอบกระดาษ 20 มม. ทุกด้าน -> พื้นที่พิมพ์ A4 = 170×257 มม. -> ครึ่งละ 127 มม. */
-  .slip-page{height:257mm;page-break-after:always;page-break-inside:avoid}
+  /* ขอบรวม 20 มม.: กระดาษ 10 มม. + ขอบในเนื้อหา 10 มม.
+     เครื่องพิมพ์ที่กินขอบ ~10 มม. จะโดนแค่พื้นที่ว่าง เนื้อหาไม่ถูกตัด */
+  .slip:not(.slip-sm){padding:10mm}
+  /* แบ่งครึ่งด้วย flex: บน-ล่างเท่ากันเป๊ะ เส้นตัดอยู่กึ่งกลางกระดาษเสมอ */
+  .slip-page{height:277mm;padding:10mm;box-sizing:border-box;display:flex;flex-direction:column;
+             page-break-after:always;page-break-inside:avoid}
   .slip-page:last-of-type{page-break-after:auto}
-  .slip-half{height:127mm;overflow:hidden}
-  .slip-cut{margin:1.5mm 0}
-  @page{size:A4;margin:20mm}
+  .slip-half{flex:1 1 0;min-height:0;overflow:hidden}
+  .slip-half .slip{page-break-inside:auto}
+  .slip-cut{flex:0 0 auto;margin:1.5mm 0}
+  @page{size:A4;margin:10mm}
 }
 .warn-note{background:var(--amber-soft);border:1px solid #eedcb3;color:#7a5a12;padding:10px 14px;border-radius:10px;font-size:13.5px;margin-bottom:14px}
 </style>
