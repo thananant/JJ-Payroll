@@ -199,7 +199,7 @@ tr.grp-dept td{background:#faf7f1;font-size:11.5px;font-weight:600;color:var(--i
 .slip-cols>div{flex:1;min-width:0}
 .slip-total{background:var(--charcoal);color:#fff;border-radius:9px;padding:8px 13px;display:flex;justify-content:space-between;align-items:center;margin-top:8px}
 .slip-total .n{font-family:'Prompt',sans-serif;font-size:19px;font-weight:600;color:#ffb37a}
-.slip-sign{display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:20px;font-size:10px;color:var(--ink-soft);text-align:center}
+.slip-sign{display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:38px;font-size:10px;color:var(--ink-soft);text-align:center}
 .slip-sign div{border-top:1px dotted #b9ad9f;padding-top:4px}
 /* ---- สลิปแบบครึ่งหน้า (2 คน / A4) ---- */
 .slip-sm{padding:8px 14px;font-size:9px}
@@ -216,7 +216,7 @@ tr.grp-dept td{background:#faf7f1;font-size:11.5px;font-weight:600;color:var(--i
 .slip-sm .section-title::before{width:7px;height:7px;border-radius:2px}
 .slip-sm .slip-total{padding:5px 10px;margin-top:5px;border-radius:7px}
 .slip-sm .slip-total .n{font-size:14px}
-.slip-sm .slip-sign{margin-top:6px;font-size:7.8px;gap:24px}
+.slip-sm .slip-sign{margin-top:20px;font-size:7.8px;gap:24px}
 .slip-sm .slip-cols{gap:6px}
 .slip-sm .slip-total{margin-top:4px}
 .slip-sm .grid.g2{gap:6px}
@@ -236,12 +236,13 @@ tr.grp-dept td{background:#faf7f1;font-size:11.5px;font-weight:600;color:var(--i
   .slip .grid.g2{grid-template-columns:1fr 1fr}
   /* ขอบรวม 20 มม.: กระดาษ 10 มม. + ขอบในเนื้อหา 10 มม.
      เครื่องพิมพ์ที่กินขอบ ~10 มม. จะโดนแค่พื้นที่ว่าง เนื้อหาไม่ถูกตัด */
-  .slip:not(.slip-sm){padding:10mm}
-  /* แบ่งครึ่งด้วย flex: บน-ล่างเท่ากันเป๊ะ เส้นตัดอยู่กึ่งกลางกระดาษเสมอ */
-  .slip-page{height:277mm;padding:10mm;box-sizing:border-box;display:flex;flex-direction:column;
+  /* ขอบกระดาษ 10mm อย่างเดียว · เส้นตัดที่ 148.5mm จากขอบกระดาษพอดี:
+     ขอบกระดาษ 10 + ครึ่งบน 137 + 1.5 = 148.5 · สูงรวม 274mm (เผื่อ 3mm กันล้นหน้า) */
+  .slip-page{height:274mm;box-sizing:border-box;display:flex;flex-direction:column;
              page-break-after:always;page-break-inside:avoid}
   .slip-page:last-of-type{page-break-after:auto}
-  .slip-half{flex:1 1 0;min-height:0;overflow:hidden}
+  .slip-half{min-height:0;overflow:hidden;flex:1 1 0}
+  .slip-page .slip-half:first-child{flex:0 0 137mm;height:137mm}
   .slip-half .slip{page-break-inside:auto}
   .slip-cut{flex:0 0 auto;margin:1.5mm 0}
   @page{size:A4;margin:10mm}
