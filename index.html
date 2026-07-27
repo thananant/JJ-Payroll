@@ -235,9 +235,11 @@ tr.grp-dept td{background:#faf7f1;font-size:11.5px;font-weight:600;color:var(--i
 .slip-cut{border-top:2px dashed #c7bcae;margin:0;position:relative}
 .slip-cut::after{content:'✂';position:absolute;left:12px;top:-9px;color:#b9ad9f;font-size:11px;background:#fff;padding:0 4px}
 @media print{
-  body *{visibility:hidden}
-  #slipBg, #slipBg *{visibility:visible}
-  #slipBg{position:absolute;inset:0;background:#fff;padding:0;display:block!important;overflow:visible}
+  /* ตัดตัวแอปทั้งหมดออกจากงานพิมพ์ (display:none = ไม่กินพื้นที่ ไม่งอกหน้าเปล่า)
+     เหลือเฉพาะกล่องเอกสาร #slipBg ไหลเป็นเนื้อหาปกติ */
+  body > *:not(#slipBg){display:none!important}
+  body{background:#fff}
+  #slipBg{display:block!important;position:static;background:#fff;padding:0;overflow:visible}
   #slipBg .modal{box-shadow:none;margin:0;max-width:100%;border-radius:0}
   #slipBg .close, #slipBg .noprint{display:none!important}
   *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
@@ -246,16 +248,14 @@ tr.grp-dept td{background:#faf7f1;font-size:11.5px;font-weight:600;color:var(--i
   .slip .grid.g2{grid-template-columns:1fr 1fr}
   /* ขอบรวม 20 มม.: กระดาษ 10 มม. + ขอบในเนื้อหา 10 มม.
      เครื่องพิมพ์ที่กินขอบ ~10 มม. จะโดนแค่พื้นที่ว่าง เนื้อหาไม่ถูกตัด */
-  /* เว้นเท่าขอบตายของเครื่องพิมพ์พอดี: บน-ซ้าย-ขวา 6mm (ล่างไม่มี) · ขอบกระดาษ = 0
-     -> Margins ในหน้าต่างพิมพ์เลือก None หรือ Default ก็ได้ผลเท่ากัน
-     เส้นตัด: ขอบบน 6 + ครึ่งบน 141 + 1.5 = 148.5mm = กึ่งกลาง A4 พอดี
-     สูงรวม 294mm (เผื่อ 3mm ท้ายกระดาษกันล้นหน้า) */
+  /* เว้นเท่าขอบตายของเครื่องพิมพ์: บน-ซ้าย-ขวา 6mm · ขอบกระดาษ = 0
+     ครึ่งบน = ครึ่งล่าง = 141mm ตายตัวทั้งคู่ -> เส้นตัดที่ 6+141+1.5 = 148.5mm เสมอ
+     สูงรวมต่อหน้า 6+141+3+141 = 291mm < A4 -> ไม่มีทางล้นไปเกิดหน้าเปล่า */
   .slip:not(.slip-sm){padding:6mm 6mm 0}
-  .slip-page{height:294mm;padding:6mm 6mm 0;box-sizing:border-box;display:flex;flex-direction:column;
+  .slip-page{padding:6mm 6mm 0;box-sizing:border-box;display:flex;flex-direction:column;
              page-break-after:always;page-break-inside:avoid}
   .slip-page:last-of-type{page-break-after:auto}
-  .slip-half{min-height:0;overflow:hidden;flex:1 1 0}
-  .slip-page .slip-half:first-child{flex:0 0 141mm;height:141mm}
+  .slip-half{flex:0 0 141mm;height:141mm;min-height:0;overflow:hidden}
   .slip-half .slip{page-break-inside:auto}
   .slip-cut{flex:0 0 auto;margin:1.5mm 0}
   @page{size:A4;margin:0}
