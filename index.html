@@ -2465,6 +2465,54 @@ function renderDetailSelector(){
   if(!list.find(x=>x.id===detailEmpId)) detailEmpId = list[0].id;
   sel.value = detailEmpId;
 }
+const PAY_HIST_START = '2026-07';   // เริ่มเก็บประวัติจากงวด ก.ค. 2569 — ก่อนหน้านั้นไม่แสดง
+function buildPayHistory(e, curPeriod){
+  const hist = allPeriods().filter(pd => pd >= PAY_HIST_START).sort().reverse()
+    .map(pd => ({ pd, days: empShiftsInPeriod(e, pd).length, p: calcPay(e, pd) }))
+    .filter(x => x.days > 0 || x.p.net !== 0);
+  if(!hist.length) return '';
+  const sum = k => hist.reduce((a,x)=>a + x.p[k], 0);
+  const sumDep = hist.reduce((a,x)=>a + x.p.dep.ded, 0);
+  const sumMou = hist.reduce((a,x)=>a + x.p.mou.ded, 0);
+  return `
+    <div class="card" style="margin-top:16px">
+      <div class="section-title" style="margin-top:0">📚 ประวัติเงินเดือนย้อนหลัง
+        <span class="muted" style="font-weight:400;font-size:12.5px">— ตั้งแต่งวด ${periodLabel(PAY_HIST_START)} เป็นต้นมา</span></div>
+      <div class="tbl-wrap"><table>
+        <thead><tr>
+          <th>งวด</th><th class="num">วันทำงาน</th><th class="num">รายรับ</th><th class="num">หักรวม</th>
+          <th class="num">เงินประกันงวดนี้</th><th class="num">ประกันสะสม</th>
+          <th class="num">MOU งวดนี้</th><th class="num">MOU คงเหลือ</th>
+          <th class="num">สุทธิ</th><th></th>
+        </tr></thead>
+        <tbody>
+        ${hist.map(x=>`<tr${x.pd===curPeriod?' style="background:var(--ember-soft)"':''}>
+          <td><b style="font-family:'Prompt',sans-serif">${periodLabel(x.pd)}</b>${x.pd===curPeriod?' <span class="chip chip-amber">กำลังดู</span>':''}</td>
+          <td class="num">${x.days||'–'}</td>
+          <td class="num" style="color:var(--green)">${THB2(x.p.base + x.p.addSum)}</td>
+          <td class="num" style="color:${x.p.deduSum?'var(--red)':'inherit'}">${x.p.deduSum? '-'+THB2(x.p.deduSum) : '–'}</td>
+          <td class="num">${x.p.dep.ded? THB(x.p.dep.ded) : '–'}</td>
+          <td class="num"><span class="muted">${x.p.dep.target? THB(x.p.dep.collected)+' / '+THB(x.p.dep.target) : '–'}</span></td>
+          <td class="num">${x.p.mou.ded? THB(x.p.mou.ded) : '–'}</td>
+          <td class="num"><span class="muted">${x.p.mou.loan? (x.p.mou.remain? THB(x.p.mou.remain) : '✓ ครบ') : '–'}</span></td>
+          <td class="num"><b style="color:var(--ember-deep)">${THB2(x.p.net)}</b></td>
+          <td><div class="act">
+            <button class="btn btn-light btn-sm" title="ดูรายละเอียดงวดนี้" onclick="document.getElementById('detailPeriodSel').value='${x.pd}'; renderDetail(); window.scrollTo({top:0,behavior:'smooth'})">👁</button>
+            <button class="btn btn-light btn-sm" title="เปิดสลิปงวดนี้" onclick="openSlip(${e.id}, '${x.pd}')">🧾</button>
+          </div></td>
+        </tr>`).join('')}
+        </tbody>
+        <tfoot><tr>
+          <td>รวม ${hist.length} งวด</td><td class="num">${hist.reduce((a,x)=>a+x.days,0)}</td>
+          <td class="num">${THB2(sum('base') + sum('addSum'))}</td>
+          <td class="num">-${THB2(sum('deduSum'))}</td>
+          <td class="num">${sumDep? THB(sumDep) : '–'}</td><td></td>
+          <td class="num">${sumMou? THB(sumMou) : '–'}</td><td></td>
+          <td class="num"><b>${THB2(sum('net'))}</b></td><td></td>
+        </tr></tfoot>
+      </table></div>
+    </div>`;
+}
 function renderDetail(){
   const e = employees.find(x=>x.id===detailEmpId);
   if(!e){ document.getElementById('detailContent').innerHTML = '<div class="card"><div class="empty">ยังไม่มีพนักงาน</div></div>'; return; }
@@ -2598,7 +2646,8 @@ function renderDetail(){
         </div>`:''}
       </div>
     </div>
-    </div>`;
+    </div>
+    ${buildPayHistory(e, period)}`;
 }
 
 /* ================= ADJUSTMENTS ================= */
