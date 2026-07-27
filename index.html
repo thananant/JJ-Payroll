@@ -414,7 +414,7 @@ tr.grp-dept td{background:#faf7f1;font-size:11.5px;font-weight:600;color:var(--i
     <span style="flex:1"></span>
     <button class="btn btn-light" onclick="exportPayrollXlsx()">📤 Export Excel</button>
     <button class="btn btn-ember" onclick="printAllSlips()">🖨️ พิมพ์สลิปทั้งหมด</button>
-    <button class="btn btn-light" onclick="openTransferSummary()">🏦 สรุปตามบัญชี</button>
+    <button class="btn btn-light" onclick="openTransferSummary()">🏦 บัญชีรับเกิน 1 คน</button>
   </div>
   <div class="muted" id="payPeriodInfo" style="margin-bottom:10px"></div>
   <div class="stats" id="payStats"></div>
@@ -2849,7 +2849,7 @@ function buildSlip(e, period, compact){
 
   </div>`;
 }
-/* ---- สรุปโอนเงินตามบัญชี: บัญชีเดียวรับหลายคนจะถูกไฮไลต์แจ้งเตือน ---- */
+/* ---- สรุปบัญชีที่รับเงินเดือนมากกว่า 1 คน (บัญชีร่วม) ---- */
 function openTransferSummary(){
   const period = document.getElementById('periodSel').value || allPeriods()[0];
   if(!period) return toast('❌ ยังไม่มีข้อมูล');
@@ -2861,21 +2861,22 @@ function openTransferSummary(){
     .map(e=>({e, p:calcPay(e,period)}))
     .filter(x=>x.p.net > 0);
 
-  const groups = {}, cash = [], noacc = [];
+  const groups = {};
   for(const x of list){
     const digits = (x.e.bankAcc||'').replace(/\D/g,'');
-    if((x.e.bankName||'') === 'เงินสด'){ cash.push(x); continue; }
-    if(!digits){ noacc.push(x); continue; }
+    if(!digits || (x.e.bankName||'') === 'เงินสด') continue;
     const g = groups[digits] = groups[digits] || { bank:'', acc:x.e.bankAcc, name:'', rows:[] };
     if(!g.bank && x.e.bankName) g.bank = x.e.bankName;
     if(!g.name && x.e.bankAccName) g.name = x.e.bankAccName;
     g.rows.push(x);
   }
-  const gs = Object.values(groups).sort((a,b)=>(a.bank||'').localeCompare(b.bank||'','th') || (a.acc||'').localeCompare(b.acc||''));
-  const shared = gs.filter(g=>g.rows.length > 1);
+  const shared = Object.values(groups).filter(g=>g.rows.length > 1)
+    .sort((a,b)=>b.rows.length - a.rows.length || (a.bank||'').localeCompare(b.bank||'','th'));
+  if(!shared.length) return toast('✅ งวดนี้ไม่มีบัญชีที่รับเงินเกิน 1 คน');
+
   const sumOf = rows => rows.reduce((a,x)=>a + x.p.net, 0);
-  const bankTotal = gs.reduce((a,g)=>a + sumOf(g.rows), 0);
-  const cashTotal = sumOf(cash);
+  const total = shared.reduce((a,g)=>a + sumOf(g.rows), 0);
+  const nPeople = shared.reduce((a,g)=>a + g.rows.length, 0);
   const empLine = x => `<b style="color:var(--ember-deep)">${x.e.nick}</b> <span class="muted">${x.e.full||''} · ${(BR[x.e.branch]||{}).t||'–'}</span>`;
 
   document.getElementById('slipBody').innerHTML = `
@@ -2883,8 +2884,8 @@ function openTransferSummary(){
     <div class="slip-head">
       <div class="logo">🏦</div>
       <div style="flex:1">
-        <h1>สรุปโอนเงินเดือนตามบัญชี</h1>
-        <div class="co">จริงใจหมูกระทะ · ${bf? 'สาขา'+((BR[bf]||{}).t||bf) : 'ทุกสาขา'} · ${list.length} คน</div>
+        <h1>บัญชีที่รับเงินเดือนมากกว่า 1 คน</h1>
+        <div class="co">จริงใจหมูกระทะ · ${bf? 'สาขา'+((BR[bf]||{}).t||bf) : 'ทุกสาขา'} · ${shared.length} บัญชี · ${nPeople} คน</div>
       </div>
       <div style="text-align:right;font-size:11.5px">
         <div style="font-family:'Prompt',sans-serif;font-weight:600;font-size:13px">${periodLabel(period)}</div>
@@ -2893,57 +2894,23 @@ function openTransferSummary(){
       </div>
     </div>
 
-    ${shared.length? `
-    <div class="section-title" style="color:var(--red)">⚠️ บัญชีที่รับเงินเดือนมากกว่า 1 คน — ${shared.length} บัญชี (ตรวจก่อนโอน)</div>
     ${shared.map(g=>`
-      <div style="border:1.5px solid #f3c4b5;background:#fff8f5;border-radius:10px;padding:10px 14px;margin-bottom:8px">
+      <div style="border:1.5px solid #f3c4b5;background:#fff8f5;border-radius:10px;padding:10px 14px;margin-top:10px;page-break-inside:avoid">
         <div style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap">
-          <b style="font-family:'Prompt',sans-serif">${g.bank||'ไม่ระบุธนาคาร'} · ${g.acc}</b>
+          <b style="font-family:'Prompt',sans-serif;font-size:13px">${g.bank||'ไม่ระบุธนาคาร'} · ${g.acc}</b>
           ${g.name? '<span class="muted">('+g.name+')</span>':''}
           <span class="chip chip-red">รับ ${g.rows.length} คน</span>
           <span style="flex:1"></span>
-          <b style="color:var(--red)">รวมเข้าบัญชีนี้ ${THB2(sumOf(g.rows))} บาท</b>
+          <b style="color:var(--red)">โอนเข้าบัญชีนี้รวม ${THB2(sumOf(g.rows))} บาท</b>
         </div>
         <table style="margin-top:6px"><tbody>
-          ${g.rows.map(x=>`<tr><td>${empLine(x)}</td><td class="num" style="width:120px">${THB2(x.p.net)}</td></tr>`).join('')}
+          ${g.rows.map(x=>`<tr><td>${empLine(x)}</td><td class="num" style="width:130px">${THB2(x.p.net)}</td></tr>`).join('')}
         </tbody></table>
-      </div>`).join('')}` : ''}
-
-    <div class="section-title">รายการโอนทั้งหมด — ${gs.length} บัญชี · รวม ${THB2(bankTotal)} บาท</div>
-    <div class="tbl-wrap"><table>
-      <thead><tr><th>ธนาคาร</th><th>เลขบัญชี</th><th>ชื่อบัญชี</th><th>จ่ายให้</th><th class="num">คน</th><th class="num">รวมโอน (บาท)</th></tr></thead>
-      <tbody>
-      ${gs.map(g=>`<tr${g.rows.length>1?' style="background:#fff4ef"':''}>
-        <td>${g.bank||'<span class="muted">–</span>'}</td>
-        <td style="font-variant-numeric:tabular-nums"><b>${g.acc}</b></td>
-        <td>${g.name||'<span class="muted">–</span>'}</td>
-        <td style="white-space:normal">${g.rows.map(x=>x.e.nick+(x.rows>1?'':'')).join(' · ')}${g.rows.length>1?' <span class="chip chip-red">ร่วม '+g.rows.length+' คน</span>':''}</td>
-        <td class="num">${g.rows.length}</td>
-        <td class="num"><b>${THB2(sumOf(g.rows))}</b></td>
-      </tr>`).join('')}
-      </tbody>
-      <tfoot><tr><td colspan="4">รวมโอนธนาคาร</td><td class="num">${gs.reduce((a,g)=>a+g.rows.length,0)}</td><td class="num">${THB2(bankTotal)}</td></tr></tfoot>
-    </table></div>
-
-    ${cash.length? `
-    <div class="section-title">💵 จ่ายเงินสด — ${cash.length} คน · รวม ${THB2(cashTotal)} บาท</div>
-    <div class="tbl-wrap"><table>
-      <thead><tr><th>สาขา</th><th>ชื่อ</th><th class="num">จำนวน (บาท)</th><th style="width:140px">เซ็นรับ</th></tr></thead>
-      <tbody>${cash.sort((a,b)=>(a.e.branch||'').localeCompare(b.e.branch||'') || a.e.nick.localeCompare(b.e.nick,'th'))
-        .map(x=>`<tr><td>${branchChip(x.e)}</td><td>${empLine(x)}</td><td class="num"><b>${THB2(x.p.net)}</b></td><td style="border-bottom:1px dotted #b9ad9f"></td></tr>`).join('')}
-      </tbody>
-      <tfoot><tr><td colspan="2">รวมเงินสด</td><td class="num">${THB2(cashTotal)}</td><td></td></tr></tfoot>
-    </table></div>`:''}
-
-    ${noacc.length? `
-    <div class="section-title" style="color:var(--amber)">⚠️ ยังไม่มีข้อมูลบัญชี — ${noacc.length} คน (ปุ่ม ✎ กระพริบแดงในหน้าพนักงาน)</div>
-    <div class="tbl-wrap"><table><tbody>
-      ${noacc.map(x=>`<tr><td>${empLine(x)}</td><td class="num" style="width:120px">${THB2(x.p.net)}</td></tr>`).join('')}
-    </tbody></table></div>`:''}
+      </div>`).join('')}
 
     <div class="slip-total">
-      <div><div style="font-size:11.5px;color:#b9ad9f">ยอดจ่ายรวมทั้งหมด (โอน + เงินสด${noacc.length?' + ยังไม่มีบัญชี':''})</div></div>
-      <div class="n">${THB2(bankTotal + cashTotal + sumOf(noacc))} ฿</div>
+      <div><div style="font-size:11.5px;color:#b9ad9f">รวมยอดโอนของบัญชีร่วมทั้งหมด (${shared.length} บัญชี · ${nPeople} คน)</div></div>
+      <div class="n">${THB2(total)} ฿</div>
     </div>
   </div>
   <div class="noprint" style="display:flex;gap:8px;justify-content:flex-end;padding:12px 20px">
@@ -2954,7 +2921,7 @@ function openTransferSummary(){
   setTimeout(()=>window.print(), 400);   // เด้งหน้าต่างพิมพ์/บันทึก PDF ให้เลย
 }
 
-/* ---- พิมพ์สลิปทุกคนตามตัวกรองหน้าสรุปเงินเดือน (คนละ 1 หน้า A4) ---- */
+/* ---- พิมพ์สลิปทุกคน/* ---- พิมพ์สลิปทุกคนตามตัวกรองหน้าสรุปเงินเดือน (คนละ 1 หน้า A4) ---- */
 function printAllSlips(){
   const period = document.getElementById('periodSel').value;
   if(!period) return toast('❌ ยังไม่มีข้อมูล');
