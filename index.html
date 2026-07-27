@@ -82,6 +82,11 @@ aside nav button:hover:not(.active){color:var(--brand-deep);background:var(--emb
   50%{background:#fff;color:var(--red);border-color:var(--red);box-shadow:0 0 0 6px rgba(224,54,22,0)}
 }
 .btn-alert{animation:blinkAlert 1s ease-in-out infinite;border:1.5px solid var(--red)!important;font-weight:700}
+@keyframes blinkCash{
+  0%,100%{background:var(--blue);color:#fff;border-color:var(--blue);box-shadow:0 0 0 0 rgba(25,113,194,.45)}
+  50%{background:#fff;color:var(--blue);border-color:var(--blue);box-shadow:0 0 0 6px rgba(25,113,194,0)}
+}
+.btn-cash{animation:blinkCash 1.2s ease-in-out infinite;border:1.5px solid var(--blue)!important;font-weight:700}
 
 main{max-width:1240px;margin:0 auto;padding:22px}
 main:has(#page-cal.active){max-width:none}   /* หน้าปฏิทินใช้เต็มความกว้างจอ */
@@ -2125,7 +2130,8 @@ function renderEmp(){
   const filtered = (bf||df||pf||af||q);
   document.getElementById('empStats').innerHTML = `
     <div class="stat"><div class="v">${active}</div><div class="l">พนักงานทำงานอยู่</div></div>
-    <div class="stat"><div class="v" style="color:${noInfo?'var(--red)':'var(--green)'}">${noInfo}</div><div class="l">ข้อมูลส่วนตัวไม่ครบ (✎ กระพริบ)</div></div>
+    <div class="stat"><div class="v" style="color:${noInfo?'var(--red)':'var(--green)'}">${noInfo}</div><div class="l">ข้อมูลไม่ครบ (✎ แดง)</div></div>
+    <div class="stat"><div class="v" style="color:var(--blue)">${employees.filter(e=>e.active && e.bankName==='เงินสด').length}</div><div class="l">รับเงินสด (✎ ฟ้า)</div></div>
     <div class="stat"><div class="v">${employees.length-active}</div><div class="l">พ้นสภาพ</div></div>
     <div class="stat"><div class="v">${[...new Set(employees.map(e=>e.dept).filter(Boolean))].length}</div><div class="l">แผนก</div></div>
     <div class="stat"><div class="v" style="color:${filtered?'var(--ember)':'inherit'}">${list.length}</div><div class="l">${filtered?'ผลการค้นหา':'รวมทั้งหมด'}</div></div>`;
@@ -2141,6 +2147,7 @@ function renderEmp(){
     list.map(e=>{
       const days = period? empShiftsInPeriod(e,period).length : 0;
       const miss = e.active ? missingInfo(e) : [];
+      const isCash = e.active && !miss.length && e.bankName === 'เงินสด';
       return `<tr>
         <td class="clickable" onclick="openDetail(${e.id})"><b style="color:var(--ember-deep)">${e.nick}</b></td>
         <td class="clickable" onclick="openDetail(${e.id})">${e.full||'<span class="muted">–</span>'}</td>
@@ -2153,7 +2160,7 @@ function renderEmp(){
         <td>${e.active?'<span class="chip chip-green">ทำงานอยู่</span>':'<span class="chip chip-red">พ้นสภาพ</span>'}</td>
         <td><div class="act">
           <button class="btn btn-light" title="ดูรายละเอียด" onclick="openDetail(${e.id})">👁</button>
-          <button class="btn btn-light${miss.length?' btn-alert':''}" title="${miss.length?'⚠️ ข้อมูลไม่ครบ: '+miss.join(' / ')+' — กดเพื่อเติม':'แก้ไขข้อมูล'}" onclick="openEmpForm(${e.id})">✎</button>
+          <button class="btn btn-light${miss.length?' btn-alert':isCash?' btn-cash':''}" title="${miss.length?'⚠️ ข้อมูลไม่ครบ: '+miss.join(' / ')+' — กดเพื่อเติม':isCash?'💵 รับเงินสด':'แก้ไขข้อมูล'}" onclick="openEmpForm(${e.id})">✎</button>
           <button class="btn btn-red" title="ลบพนักงาน" onclick="delEmp(${e.id})">🗑</button>
         </div></td></tr>`;
     }).join('') + '</tbody>';
@@ -2468,7 +2475,7 @@ function renderDetail(){
       ${e.phone? '<span class="muted">📞 '+e.phone+'</span>':''}
       ${e.bankAcc? '<span class="muted">🏦 '+(e.bankName?e.bankName+' ':'')+e.bankAcc+'</span>':''}
       <span style="flex:1"></span>
-      <button class="btn btn-light btn-sm${e.active && missingInfo(e).length?' btn-alert':''}" title="${e.active && missingInfo(e).length?'⚠️ ข้อมูลไม่ครบ: '+missingInfo(e).join(' / '):''}" onclick="openEmpForm(${e.id})">✎ แก้ไขข้อมูล${e.active && missingInfo(e).length?' ⚠️':''}</button>
+      <button class="btn btn-light btn-sm${e.active && missingInfo(e).length?' btn-alert':(e.active && e.bankName==='เงินสด')?' btn-cash':''}" title="${e.active && missingInfo(e).length?'⚠️ ข้อมูลไม่ครบ: '+missingInfo(e).join(' / '):(e.active && e.bankName==='เงินสด')?'💵 รับเงินสด':''}" onclick="openEmpForm(${e.id})">✎ แก้ไขข้อมูล${e.active && missingInfo(e).length?' ⚠️':(e.active && e.bankName==='เงินสด')?' 💵':''}</button>
       <button class="btn btn-ember btn-sm" onclick="openSlip(${e.id},'${period}')">🧾 ใบสรุปเงินเดือน</button>
     </div></div></div>
     <div class="muted" style="margin:8px 0 0">${period? 'งวด '+periodRangeLabel(period)+' · จ่าย '+dayLabel(periodRange(period).pay) : ''}</div>
