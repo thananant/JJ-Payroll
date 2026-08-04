@@ -82,6 +82,7 @@
 5. เพิ่มตารางใหม่ต้องมี: RLS policy allow-all + ADD TABLE เข้า supabase_realtime + listener ใน startRealtime + flag `xxReady` กัน error ก่อนรัน SQL
 6. ผู้ใช้สื่อสารภาษาไทย — UI/comment/คำตอบเป็นไทย · ส่งไฟล์สมบูรณ์พร้อม deploy ไม่ใช่แค่ diff
 7. Deploy = อัปโหลด index.html ทับใน GitHub repo → Ctrl+Shift+R (GitHub Pages cache ~5-10 นาที)
+8. **เจ้าของสั่งไว้ (2026-08-04): แก้เสร็จ+ตรวจผ่านแล้ว ให้เปิด PR และ merge เข้า main อัตโนมัติเลย ไม่ต้องถามยืนยัน** (ยกเว้นงานที่เสี่ยงลบ/แก้ข้อมูลจริงใน Supabase — อันนั้นถามก่อน)
 
 ## งานค้าง (ทำต่อได้เลย)
 
