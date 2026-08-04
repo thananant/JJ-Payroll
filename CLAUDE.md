@@ -1,0 +1,100 @@
+# JJ-Payroll — ระบบเงินเดือน จริงใจหมูกระทะ
+
+คู่มือบริบทสำหรับ Claude Code — อ่านไฟล์นี้ก่อนแก้อะไรทุกครั้ง
+
+## ภาพรวมระบบ
+
+- **แอปหลัก**: `index.html` ไฟล์เดียวจบ (HTML + CSS + JS inline ~277KB) — deploy บน **GitHub Pages** repo `thananant.github.io/JJ-Payroll`
+- **ฐานข้อมูล**: Supabase โปรเจกต์ `aikyxvluaiubdidqxwnd`
+  - URL: `https://aikyxvluaiubdidqxwnd.supabase.co`
+  - Publishable key (ฝังใน frontend ได้): `sb_publishable_Bn6BMtcjasoPT3RZ_ekyOg_SLWWp-nm`
+- **Cloudflare Worker**: `steep-hill-7d52.thananantpatt.workers.dev` (โค้ดคือ `worker.js`)
+  - รับข้อมูลเครื่องสแกนหน้า ZKTeco (`/iclock/*`) + Hikvision (`/hik`)
+  - ส่งรายงาน LINE: Cron `1 4,8,11 * * *` (รายกะ 11:01/15:01/18:01 ไทย) + `0 14 * * *` (สรุป 21:00 ไทย)
+  - ทดสอบมือ: `GET /report/daily?send=1`
+  - Secrets อยู่ใน CF dashboard: SUPABASE_URL, SUPABASE_KEY, LINE_TOKEN, LINE_GROUP_ID
+- **ผู้ใช้**: เจ้าของร้าน + ผู้จัดการ เปิดจากคอมและ iPhone — ทุกฟีเจอร์ต้องรองรับมือถือ
+
+## ธุรกิจ / กฎเงินเดือน (สำคัญมาก — อย่าเปลี่ยนโดยไม่ถาม)
+
+- **สาขา**: JJLP ลาดพร้าว · JJRD รัชดา · OFFICE ส่วนกลาง
+- **งวดเงินเดือน**: วันที่ 26 เดือนก่อน → 25 เดือนนี้ = "งวดเดือนนี้" · จ่ายวันที่ 5 เดือนถัดไป
+  - `periodOf(day)`: วันที่ ≤ 25 อยู่งวดเดือนนั้น, ≥ 26 อยู่งวดเดือนถัดไป
+- **จุดตัดวัน (cutoff) = 06:00** — สแกนก่อนตี 6 นับเป็นกะของ "เมื่อวาน" (กะเย็นข้ามคืน)
+- **จับกะอัตโนมัติ**: detectShift ถ่วงน้ำหนัก |เข้า-เวลาเริ่ม| + 2×|ออก-เวลาเลิก|
+- **กะพิเศษล้างจาน** 11:00-20:00: shiftsFor เทียบ deptOnly กับทั้งแผนกและตำแหน่ง
+- **สาย/ออกก่อน**: หักนาทีละ ×1.5 บาท (เกิน grace 5 นาที)
+- **ลืมตอกบัตร** (สแกนขาเดียว): ปรับครั้งละ 200
+- **กฎห้ามหยุด ศ-ส-อา + วันหยุดพิเศษ**: หยุดโดนหักวันละ 400 (รายเดือนคิดฐาน ÷30)
+  - ยกเว้นอัตโนมัติ (autoMustExempt): สาขา OFFICE, ตำแหน่ง/แผนกมีคำว่า manager|ผู้จัดการ, แผนกมีคำว่า ออฟฟิศ, คนมีวันหยุดประจำสัปดาห์, รายชั่วโมง
+- **เบี้ยไม่หยุด**: ไม่ใช้สิทธิ์วันหยุด ได้วันละ 400 · **เบี้ยวันหยุดพิเศษ**: มาทำงานวันหยุดพิเศษได้ตัวคูณ (ต้องไม่สาย/ไม่ออกก่อน/ไม่ลืมตอก)
+- **เบิกกลางเดือน**: มีเพดานต่อคน เกินได้แต่ toast เตือน + confirm
+- **เงินประกัน**: เป้า 5,000 หักเดือนละ 500 · **เริ่มหักจริงงวด 2026-08 (ส.ค. 2569)** ผ่าน `payroll_settings.dep_start` — ห้ามคิดย้อนหลัง · override รายงวดในตาราง `deposit_entries` · ครบแล้วหยุดเอง
+- **เงินยืม MOU**: ปกติ 15,000 หักเดือนละ 2,000 พอเหลือ ≤ 3,000 หักหมดงวดสุดท้าย (= 2,000×6 + 3,000) · บริษัทเก็บ Passport+บัตรชมพู คืนเมื่อหักครบเท่านั้น · มีสมุดยืม-คืนเอกสาร (doc_borrows)
+- **รายการหักสำเร็จรูป** (ADJ_PRESETS): แต่งตัวผิดระเบียบ 50 · ไม่ใส่เสื้อพนักงาน 200 · เล่นโทรศัพท์ 100 · ไม่เก็บโทรศัพท์ 100 · อื่นๆ บังคับใส่เหตุผล
+- **พนักงานใหม่ (ฟอร์ม)**: default รายเดือน 12,000 (import/worker ยังเป็นรายวันตาม default_wage)
+- **ประวัติเงินเดือนย้อนหลัง**: แสดงตั้งแต่ `PAY_HIST_START = '2026-07'` เท่านั้น
+
+## Supabase — ตารางทั้งหมด
+
+- `employees` — ข้อมูลพนักงาน: nick, full_name, code (รหัสเครื่องสแกน), branch, dept, position, wage_type(daily/monthly/hourly/hours), rate, mode, photo, active, off_* (วันหยุด), deposit_target/deposit_monthly/deposit_opening/deposit_on, **birth_date, phone, bank_name, bank_account, bank_account_name**
+- `punches` — เวลาสแกน: emp_code, punch_date, punch_time, source('manual' = แก้มือ), unique(emp_code,punch_date,punch_time)
+- `adjustments` — เพิ่ม/หักเงินรายงวด: employee_id, kind(add/deduct), reason, amount, period
+- `advances` — เบิกกลางเดือน: employee_id, amount, adv_date, period
+- `holidays` — วันหยุดพิเศษ: day, name, multiplier
+- `payroll_settings` — แถวเดียว: cutoff, cut_day, pay_day, late_rate, single_fine, grace, default_wage, month_div, no_off_bonus, hourly_*, must_work_days('5,6,0'), must_work_fine, **dep_start**
+- `deposit_entries` — override เงินประกันรายงวด: unique(employee_id, period)
+- `mou_loans` — unique ต่อคน: amount, monthly, final_max, start_period, opening, doc_passport, doc_pink, doc_complete, note, returned_at
+- `mou_entries` — override หัก MOU รายงวด: unique(employee_id, period)
+- `doc_borrows` — สมุดยืมเอกสาร: doc, borrow_date, return_date, note
+- ทุกตาราง RLS เปิดแบบ allow-all + อยู่ใน publication `supabase_realtime`
+
+## โครงหน้า (hash routing: #today #emp #detail #payroll #cal #adv #dep #mou #shifts #holi #settings)
+
+วันนี้ · พนักงาน · ข้อมูลพนักงาน(รายคน+ประวัติเงินเดือน) · สรุปเงินเดือน · ปฏิทินเข้างาน · เบิกกลางเดือน · เงินประกัน · เอกสาร MOU(+สมุดยืมเอกสาร) · กะการทำงาน · วันหยุดพิเศษ(ปุ่ม＋เพิ่มปี) · ตั้งค่า
+- หน้า cal/today/mou/dep เป็น full-width (`main:has(#page-X.active){max-width:none}` + ใน go())
+- ปุ่ม ✎ พนักงาน: **กระพริบแดง** = ขาดวันเกิด/เบอร์/ธนาคาร/เลขบัญชี (missingInfo) · **กระพริบฟ้า** = รับเงินสด (ครบแล้ว)
+
+## ระบบพิมพ์ (จูนกับเครื่อง Canon MF645C ขอบตาย 6mm แล้ว — อย่าแก้ตัวเลขโดยไม่ถาม)
+
+- `@page{size:A4;margin:0}` — ขอบทั้งหมดอยู่ในเนื้อหา ผู้ใช้เลือก Margins None/Default ได้ผลเท่ากัน · **Scale ต้อง 100**
+- สลิปเต็มหน้า: `.slip:not(.slip-sm){padding:6mm 6mm 0}`
+- แบบครึ่งหน้า (สลิป 2 คน/แผ่น + ใบบัญชีร่วม 2 บัญชี/แผ่น):
+  - `.slip-page{padding:6mm 6mm 0}` **ห้ามใส่ height ตายตัว** (เคยทำหน้าเปล่างอก)
+  - `.slip-half{flex:0 0 141mm;height:141mm;overflow:hidden}` ทั้งบนและล่าง
+  - เส้นปะ ✂ = 6+141+1.5 = **148.5mm กึ่งกลาง A4 พอดี**
+- ซ่อนแอปตอนพิมพ์: `body > *:not(#slipBg){display:none!important}` (**ห้ามใช้ visibility:hidden** — กินพื้นที่ งอกหน้าเปล่า)
+- `print-color-adjust:exact` ทุก element · media query มือถือเป็น `@media screen and (max-width:860px)` เท่านั้น (**ห้ามลืม screen** ไม่งั้นโหมดพิมพ์โดนกฎมือถือ ตารางยุบเป็นคอลัมน์เดียว)
+- สลิปครึ่งหน้า ตารางเข้างาน 3 คอลัมน์ / เต็มหน้า 2 คอลัมน์ (`nCol = compact ? 3 : 2`)
+- ปุ่ม 🖨️ พิมพ์สลิปทั้งหมด / 🏦 บัญชีรับเกิน 1 คน: auto `window.print()` หลัง 400-500ms
+
+## กติกาการแก้โค้ด (สำคัญ)
+
+1. **แก้เสร็จต้องตรวจ**: แยก `<script>` ออกมา `node --check` เสมอ (มี `tools/check.sh` ให้)
+2. SQL ทุกไฟล์ตรวจด้วย `pglast` (`pip install pglast`) — Supabase SQL Editor ผู้ใช้ต้อง **Ctrl+A ก่อน Run** (editor รันเฉพาะส่วนที่ไฮไลต์) → เขียน SQL ให้แต่ละ statement ยืนเองได้ หรือยัด VALUES ใน CTE เป็นคำสั่งเดียว
+3. ตัวเลขจาก Supabase ห่อ `Number(x)||0` เสมอ
+4. iOS: input font ≥16px กันซูม · ห้ามใช้ `<select size=N>` (แสดงเพี้ยน) ใช้ลิสต์ `.emp-pick` แตะเลือก · การ์ด grid ใช้ `minmax(min(420px,100%),1fr)`
+5. เพิ่มตารางใหม่ต้องมี: RLS policy allow-all + ADD TABLE เข้า supabase_realtime + listener ใน startRealtime + flag `xxReady` กัน error ก่อนรัน SQL
+6. ผู้ใช้สื่อสารภาษาไทย — UI/comment/คำตอบเป็นไทย · ส่งไฟล์สมบูรณ์พร้อม deploy ไม่ใช่แค่ diff
+7. Deploy = อัปโหลด index.html ทับใน GitHub repo → Ctrl+Shift+R (GitHub Pages cache ~5-10 นาที)
+
+## งานค้าง (ทำต่อได้เลย)
+
+1. **เติมรหัส 17 คนใน `sql/jj_info_fix.sql` ส่วน 4** (นำเข้าข้อมูลจาก Excel เสร็จ 128/145 คน):
+   ลิลลี่ แถว23 (น่าจะ = KESONE SINAPHA code 4119126353 JJLP) · ลิลลี่ แถว85 (NAN LIN LIN KHAING = อีกคนที่ JJRD) · น้ำฝน แถว42,59 · เล็ก แถว50 · เมา แถว57 · พะแสง แถว60 · หนุ่ม แถว69 · ฟ้า แถว84 · วี แถว93 · ต้น แถว95 · Savana แถว99 · หอม แถว100 · น้อย แถว102 (NANG PUT ซ้ำ 3) · โซ แถว114 · แตงโม แถว140 · วิน แถว144
+   → รัน "ส่วน 1" ของไฟล์เพื่อดูผู้สมัคร+รหัส แล้วเติมใน "ส่วน 4"
+2. **วันเกิดรอแก้ต้นทาง 4 คน** (ตอนนี้เว้น NULL ไว้): โน๊ต 3537777921 (ไฟล์เขียน 1452) · เอ 3341077509 (1461) · จอม 4235352505 (2026) · เลย์ 2147833848 (2026)
+3. เช็ควันเกิดปี 2010-2011 หลายคน (อายุ 14-15) ว่าถูกจริงไหม: เจน, น้ำเพชร, ขวัญ, ดา, ฟู, ต้น
+4. (ถ้าต้องการ) worker.js สร้างพนักงานใหม่จากสแกนครั้งแรกยังเป็นรายวัน 400 — ปรับเป็นรายเดือน 12,000 ได้ถ้าเจ้าของสั่ง
+
+## โครงไฟล์ใน repo นี้
+
+```
+index.html        <- แอปทั้งหมด (source of truth)
+worker.js         <- Cloudflare Worker (deploy ผ่าน CF dashboard ไม่ใช่ GitHub)
+sql/              <- migration ทุกไฟล์ที่เคยรัน (เรียงตามชื่อ; รันซ้ำได้)
+tools/split.py    <- แยก JS ออกจาก index.html -> app.js (ไว้แก้สะดวก)
+tools/build.py    <- ประกอบ app.js กลับเข้า index.html + ตรวจ syntax
+tools/check.sh    <- node --check เร็วๆ กับ script ใน index.html
+CLAUDE.md         <- ไฟล์นี้
+```
