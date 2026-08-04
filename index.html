@@ -411,6 +411,11 @@ tr.grp-dept td{background:#faf7f1;font-size:11.5px;font-weight:600;color:var(--i
       <option value="cross">🔀 ทำงานข้ามสาขา</option>
       <option value="must">🚫 หยุดวันห้ามหยุด</option>
     </select>
+    <select id="payActive" onchange="renderPayroll()" style="width:auto;min-width:150px">
+      <option value="">ทุกสถานะ</option>
+      <option value="1">✅ ยังทำงานอยู่</option>
+      <option value="0">🚫 พ้นสภาพ</option>
+    </select>
     <span style="flex:1"></span>
     <button class="btn btn-light" onclick="exportPayrollXlsx()">📤 Export Excel</button>
     <button class="btn btn-ember" onclick="openSlipPicker()">🖨️ พิมพ์สลิป (เลือกคนได้)</button>
@@ -825,7 +830,16 @@ tr.grp-dept td{background:#faf7f1;font-size:11.5px;font-weight:600;color:var(--i
   <div class="modal">
     <button class="close" onclick="closeModal('slipPickBg')">✕</button>
     <h2 class="font-display">เลือกพนักงานที่จะพิมพ์สลิป</h2>
-    <p class="muted" style="margin-bottom:10px">ติ๊กเฉพาะคนที่ต้องการ · รายชื่อตามตัวกรองหน้าสรุปเงินเดือน</p>
+    <p class="muted" style="margin-bottom:10px">ติ๊กเฉพาะคนที่ต้องการ · กรองรายชื่อได้ · ปุ่มเลือก/ล้างทั้งหมด มีผลเฉพาะรายชื่อที่กรองอยู่</p>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap">
+      <select id="pickBranch" onchange="renderSlipPickList()" style="width:auto;min-width:130px;font-size:16px"></select>
+      <select id="pickPos" onchange="renderSlipPickList()" style="width:auto;min-width:140px;font-size:16px"></select>
+      <select id="pickActive" onchange="renderSlipPickList()" style="width:auto;min-width:140px;font-size:16px">
+        <option value="">ทุกสถานะ</option>
+        <option value="1">✅ ยังทำงานอยู่</option>
+        <option value="0">🚫 พ้นสภาพ</option>
+      </select>
+    </div>
     <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
       <button class="btn btn-light btn-sm" onclick="slipPickAll(true)">✓ เลือกทั้งหมด</button>
       <button class="btn btn-light btn-sm" onclick="slipPickAll(false)">✕ ล้างทั้งหมด</button>
@@ -3126,6 +3140,7 @@ function slipFilterList(period){
   const pf = document.getElementById('payPos').value;
   const mf = document.getElementById('payMode').value;
   const ff = document.getElementById('payFlag').value;
+  const af = (document.getElementById('payActive')||{}).value || '';
   const flagOk = (p) => !ff ||
     (ff==='single' && p.singleCount>0) || (ff==='late' && p.missMin>0) ||
     (ff==='adv' && p.advSum>0) || (ff==='bonus' && (p.holiBonus>0||p.noOffBonus>0)) ||
@@ -3134,38 +3149,66 @@ function slipFilterList(period){
   return employees
     .filter(e=>(e.active || empShiftsInPeriod(e,period).length) &&
                (!bf || e.branch===bf) && (!df || e.dept===df) && (!pf || e.position===pf) &&
-               (!mf || e.mode===mf) && empMatch(e, q))
+               (!mf || e.mode===mf) && (af==='' || String(+e.active)===af) && empMatch(e, q))
     .filter(e=>empShiftsInPeriod(e,period).length > 0)
     .map(e=>({e, p:calcPay(e,period)}))
     .filter(x=>flagOk(x.p))
     .sort((a,b)=> (a.e.branch||'').localeCompare(b.e.branch||'') ||
                   (a.e.dept||'').localeCompare(b.e.dept||'','th') || a.e.nick.localeCompare(b.e.nick,'th'));
 }
-/* ---- หน้าต่างเลือกคนก่อนพิมพ์ (ไม่ต้องพิมพ์ทั้งหมดก็ได้) ---- */
+/* ---- หน้าต่างเลือกคนก่อนพิมพ์ (ไม่ต้องพิมพ์ทั้งหมดก็ได้)
+   มีตัวกรอง สาขา/ตำแหน่ง/สถานะ ในตัว · จำรายการที่ติ๊กไว้แม้สลับตัวกรอง ---- */
+let slipPickItems = [];         // รายชื่อทั้งหมดตามตัวกรองหน้าสรุปเงินเดือน (ตอนเปิด modal)
+let slipPickSel = new Set();    // id ที่ติ๊กเลือกอยู่ (คงอยู่ข้ามการสลับตัวกรองใน modal)
 function openSlipPicker(){
   const period = document.getElementById('periodSel').value;
   if(!period) return toast('❌ ยังไม่มีข้อมูล');
-  const list = slipFilterList(period);
-  if(!list.length) return toast('❌ ไม่มีพนักงานตามตัวกรองในงวดนี้');
-  document.getElementById('slipPickList').innerHTML = list.map(({e,p})=>`
-    <label style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-bottom:1px solid var(--line);cursor:pointer">
-      <input type="checkbox" class="slip-pick" value="${e.id}" checked onchange="updSlipPickCount()" style="width:auto">
-      <b style="color:var(--ember-deep)">${e.nick}</b>
-      <span class="muted" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e.full||''}</span>
-      ${branchChip(e)}
-      <span style="font-weight:600;white-space:nowrap">${THB(p.net)} ฿</span>
-    </label>`).join('');
-  updSlipPickCount();
+  slipPickItems = slipFilterList(period);
+  if(!slipPickItems.length) return toast('❌ ไม่มีพนักงานตามตัวกรองในงวดนี้');
+  slipPickSel = new Set(slipPickItems.map(x=>x.e.id));   // เริ่มต้นเลือกทุกคน
+  const brs = [...new Set(slipPickItems.map(x=>x.e.branch).filter(Boolean))].sort();
+  document.getElementById('pickBranch').innerHTML = '<option value="">ทุกสาขา</option>'+
+    brs.map(b=>`<option value="${b}">${(BR[b]||{}).t||b}</option>`).join('');
+  const poss = [...new Set(slipPickItems.map(x=>x.e.position).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'th'));
+  document.getElementById('pickPos').innerHTML = '<option value="">ทุกตำแหน่ง</option>'+
+    poss.map(p=>`<option>${p}</option>`).join('');
+  document.getElementById('pickActive').value = '';
+  renderSlipPickList();
   document.getElementById('slipPickBg').classList.add('show');
 }
-function slipPickAll(on){ document.querySelectorAll('.slip-pick').forEach(c=>c.checked=on); updSlipPickCount(); }
+function slipPickVisible(){
+  const b  = document.getElementById('pickBranch').value;
+  const po = document.getElementById('pickPos').value;
+  const ac = document.getElementById('pickActive').value;
+  return slipPickItems.filter(x=> (!b || x.e.branch===b) && (!po || x.e.position===po) &&
+                                  (ac==='' || String(+x.e.active)===ac));
+}
+function renderSlipPickList(){
+  const vis = slipPickVisible();
+  document.getElementById('slipPickList').innerHTML = vis.length? vis.map(({e,p})=>`
+    <label style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-bottom:1px solid var(--line);cursor:pointer">
+      <input type="checkbox" class="slip-pick" value="${e.id}" ${slipPickSel.has(e.id)?'checked':''} onchange="toggleSlipPick(${e.id},this.checked)" style="width:auto">
+      <b style="color:var(--ember-deep)">${e.nick}</b>
+      <span class="muted" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e.full||''}${e.position?' · '+e.position:''}</span>
+      ${e.active?'':'<span class="chip chip-gray">พ้นสภาพ</span>'}
+      ${branchChip(e)}
+      <span style="font-weight:600;white-space:nowrap">${THB(p.net)} ฿</span>
+    </label>`).join('')
+    : '<div class="empty">ไม่มีรายชื่อตามตัวกรองนี้</div>';
+  updSlipPickCount();
+}
+function toggleSlipPick(id, on){ if(on) slipPickSel.add(id); else slipPickSel.delete(id); updSlipPickCount(); }
+function slipPickAll(on){       // มีผลเฉพาะรายชื่อที่กรองแสดงอยู่
+  for(const x of slipPickVisible()){ if(on) slipPickSel.add(x.e.id); else slipPickSel.delete(x.e.id); }
+  renderSlipPickList();
+}
 function updSlipPickCount(){
-  const n = document.querySelectorAll('.slip-pick:checked').length;
+  const n = slipPickSel.size;
   document.getElementById('slipPickCount').textContent = 'เลือกแล้ว '+n+' คน';
   document.getElementById('slipPickGo').textContent = '🖨️ พิมพ์สลิป ('+n+' คน)';
 }
 function printPickedSlips(){
-  const ids = [...document.querySelectorAll('.slip-pick:checked')].map(c=>+c.value);
+  const ids = [...slipPickSel];
   if(!ids.length) return toast('❌ ยังไม่ได้เลือกใครเลย');
   closeModal('slipPickBg');
   printAllSlips(ids);
@@ -3721,6 +3764,7 @@ function renderPayroll(){
   const pf = document.getElementById('payPos').value;
   const mf = document.getElementById('payMode').value;
   const ff = document.getElementById('payFlag').value;
+  const af = (document.getElementById('payActive')||{}).value || '';
   const r = periodRange(period);
   document.getElementById('payPeriodInfo').innerHTML =
     `รอบ <b>${periodRangeLabel(period)}</b> · จ่าย <b>${dayLabel(r.pay)}</b> · เบิกกลางเดือนได้ <b>${dayLabel(r.adv)}</b>`;
@@ -3731,7 +3775,8 @@ function renderPayroll(){
     (ff==='dep' && p.dep.ded>0) || (ff==='mou' && p.mou.ded>0);
   const list = employees
     .filter(e=>(e.active || empShiftsInPeriod(e,period).length) &&
-               (!bf || e.branch===bf) && (!df || e.dept===df) && (!pf || e.position===pf) && (!mf || e.mode===mf) && empMatch(e, q))
+               (!bf || e.branch===bf) && (!df || e.dept===df) && (!pf || e.position===pf) && (!mf || e.mode===mf) &&
+               (af==='' || String(+e.active)===af) && empMatch(e, q))
     .map(e=>({e, p:calcPay(e,period)}))
     .filter(x=>flagOk(x.p))
     .sort((a,b)=> (a.e.branch||'').localeCompare(b.e.branch||'') || (a.e.dept||'').localeCompare(b.e.dept||'','th') || a.e.nick.localeCompare(b.e.nick,'th'));
@@ -3740,7 +3785,7 @@ function renderPayroll(){
     single:a.single+x.p.singleCount, adv:a.adv+x.p.advSum, dep:a.dep+x.p.dep.ded,
     fullHrs:a.fullHrs+(x.e.mode==='hourly'?x.p.fullHrs:0)}),{base:0,add:0,ded:0,net:0,days:0,miss:0,single:0,adv:0,dep:0,fullHrs:0});
   document.getElementById('payStats').innerHTML = `
-    <div class="stat"><div class="v" style="color:${(bf||df||pf||mf||ff||q)?'var(--ember)':'inherit'}">${list.length}</div><div class="l">${(bf||df||pf||mf||ff||q)?'ผลการค้นหา':'พนักงานในงวดนี้'}</div></div>
+    <div class="stat"><div class="v" style="color:${(bf||df||pf||mf||ff||af||q)?'var(--ember)':'inherit'}">${list.length}</div><div class="l">${(bf||df||pf||mf||ff||af||q)?'ผลการค้นหา':'พนักงานในงวดนี้'}</div></div>
     <div class="stat"><div class="v">${tot.days.toLocaleString()}</div><div class="l">วันทำงานรวม</div></div>
     <div class="stat"><div class="v" style="color:${tot.single?'var(--red)':'inherit'}">${tot.single}</div><div class="l">ลืมตอกบัตร (ครั้ง)</div></div>
     <div class="stat"><div class="v">${THB(tot.ded)} ฿</div><div class="l">หักรวม</div></div>
@@ -3752,7 +3797,7 @@ function renderPayroll(){
       <th class="num">ประกัน</th><th class="num">ค่าแรง</th><th class="num">เพิ่ม</th><th class="num">หัก</th><th class="num">สุทธิ</th><th></th>
     </tr></thead><tbody>` +
     list.map(({e,p})=>`<tr>
-      <td class="clickable" onclick="openDetail(${e.id})"><b style="color:var(--ember-deep)">${e.nick}</b> <span class="muted">${e.full||''}</span></td>
+      <td class="clickable" onclick="openDetail(${e.id})"><b style="color:var(--ember-deep)">${e.nick}</b> <span class="muted">${e.full||''}</span>${e.active?'':' <span class="chip chip-gray">พ้นสภาพ</span>'}</td>
       <td>${branchChip(e)}</td>
       <td><span class="dept-chip">${e.dept||'–'}</span></td>
       <td class="num">${p.days}</td>
