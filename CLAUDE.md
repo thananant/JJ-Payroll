@@ -33,11 +33,14 @@
 - **เงินยืม MOU**: ปกติ 15,000 หักเดือนละ 2,000 พอเหลือ ≤ 3,000 หักหมดงวดสุดท้าย (= 2,000×6 + 3,000) · บริษัทเก็บ Passport+บัตรชมพู คืนเมื่อหักครบเท่านั้น · มีสมุดยืม-คืนเอกสาร (doc_borrows)
 - **รายการหักสำเร็จรูป** (ADJ_PRESETS): แต่งตัวผิดระเบียบ 50 · ไม่ใส่เสื้อพนักงาน 200 · เล่นโทรศัพท์ 100 · ไม่เก็บโทรศัพท์ 100 · อื่นๆ บังคับใส่เหตุผล
 - **พนักงานใหม่ (ฟอร์ม)**: default รายเดือน 12,000 (import/worker ยังเป็นรายวันตาม default_wage)
+- **วันเริ่มงาน/วันสิ้นสุด** (`employees.start_date/end_date`): รายเดือนที่เริ่มงานหลังเปิดงวด หรือออกก่อนตัดรอบ → งวดนั้นคิดเป็นรายวัน (วันทำงาน × เงินเดือน÷30) · กฎห้ามหยุด+วันหยุดพิเศษนับเฉพาะช่วงที่ยังทำงานอยู่ · flag `workDateReady`
+- **แก้รายการหักอัตโนมัติ** (ตาราง `fine_entries`, flag `fineReady`): หักผิดแก้ยอดรายงวดได้ 4 ชนิด — kind: miss(สาย/ออกก่อนตามนาที) late(ปรับมาสาย) single(ลืมตอก) must(หยุดวันห้ามหยุด) · ปุ่ม ✎ ในหน้าข้อมูลพนักงาน (editFine) · เว้นว่าง = กลับอัตโนมัติ, 0 = ไม่หัก
+- **พิมพ์สลิปเลือกคนได้**: ปุ่ม 🖨️ เปิด modal `slipPickBg` ติ๊กเลือกคน (openSlipPicker → printAllSlips(ids))
 - **ประวัติเงินเดือนย้อนหลัง**: แสดงตั้งแต่ `PAY_HIST_START = '2026-07'` เท่านั้น
 
 ## Supabase — ตารางทั้งหมด
 
-- `employees` — ข้อมูลพนักงาน: nick, full_name, code (รหัสเครื่องสแกน), branch, dept, position, wage_type(daily/monthly/hourly/hours), rate, mode, photo, active, off_* (วันหยุด), deposit_target/deposit_monthly/deposit_opening/deposit_on, **birth_date, phone, bank_name, bank_account, bank_account_name**
+- `employees` — ข้อมูลพนักงาน: nick, full_name, code (รหัสเครื่องสแกน), branch, dept, position, wage_type(daily/monthly/hourly/hours), rate, mode, photo, active, off_* (วันหยุด), deposit_target/deposit_monthly/deposit_opening/deposit_on, **birth_date, phone, bank_name, bank_account, bank_account_name, start_date, end_date**
 - `punches` — เวลาสแกน: emp_code, punch_date, punch_time, source('manual' = แก้มือ), unique(emp_code,punch_date,punch_time)
 - `adjustments` — เพิ่ม/หักเงินรายงวด: employee_id, kind(add/deduct), reason, amount, period
 - `advances` — เบิกกลางเดือน: employee_id, amount, adv_date, period
@@ -47,6 +50,7 @@
 - `mou_loans` — unique ต่อคน: amount, monthly, final_max, start_period, opening, doc_passport, doc_pink, doc_complete, note, returned_at
 - `mou_entries` — override หัก MOU รายงวด: unique(employee_id, period)
 - `doc_borrows` — สมุดยืมเอกสาร: doc, borrow_date, return_date, note
+- `fine_entries` — แก้ยอดรายการหักอัตโนมัติรายงวด: employee_id, period, kind(miss/late/single/must), amount, unique(employee_id, period, kind)
 - ทุกตาราง RLS เปิดแบบ allow-all + อยู่ใน publication `supabase_realtime`
 
 ## โครงหน้า (hash routing: #today #emp #detail #payroll #cal #adv #dep #mou #shifts #holi #settings)

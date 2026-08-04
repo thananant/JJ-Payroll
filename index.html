@@ -413,7 +413,7 @@ tr.grp-dept td{background:#faf7f1;font-size:11.5px;font-weight:600;color:var(--i
     </select>
     <span style="flex:1"></span>
     <button class="btn btn-light" onclick="exportPayrollXlsx()">📤 Export Excel</button>
-    <button class="btn btn-ember" onclick="printAllSlips()">🖨️ พิมพ์สลิปทั้งหมด</button>
+    <button class="btn btn-ember" onclick="openSlipPicker()">🖨️ พิมพ์สลิป (เลือกคนได้)</button>
     <button class="btn btn-light" onclick="openTransferSummary()">🏦 บัญชีรับเกิน 1 คน</button>
   </div>
   <div class="muted" id="payPeriodInfo" style="margin-bottom:10px"></div>
@@ -658,6 +658,8 @@ tr.grp-dept td{background:#faf7f1;font-size:11.5px;font-weight:600;color:var(--i
       <div><label>รหัสพนักงาน (จากเครื่องสแกน)</label><input id="fCode"></div>
       <div><label>วันเกิด</label><input type="date" id="fBirth"></div>
       <div><label>เบอร์โทร</label><input type="tel" id="fPhone" placeholder="เช่น 081-234-5678"></div>
+      <div><label>วันเริ่มงาน</label><input type="date" id="fStart"></div>
+      <div><label>วันสิ้นสุดการทำงาน (ออกจากงาน)</label><input type="date" id="fEnd"></div>
       <div><label>ธนาคารสำหรับโอนเงินเดือน</label>
         <input id="fBank" list="bankList" placeholder="เลือกหรือพิมพ์เอง">
         <datalist id="bankList">
@@ -818,6 +820,25 @@ tr.grp-dept td{background:#faf7f1;font-size:11.5px;font-weight:600;color:var(--i
   </div>
 </div>
 
+<!-- ============ เลือกพนักงานที่จะพิมพ์สลิป ============ -->
+<div class="modal-bg" id="slipPickBg" onclick="if(event.target===this)closeModal('slipPickBg')">
+  <div class="modal">
+    <button class="close" onclick="closeModal('slipPickBg')">✕</button>
+    <h2 class="font-display">เลือกพนักงานที่จะพิมพ์สลิป</h2>
+    <p class="muted" style="margin-bottom:10px">ติ๊กเฉพาะคนที่ต้องการ · รายชื่อตามตัวกรองหน้าสรุปเงินเดือน</p>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
+      <button class="btn btn-light btn-sm" onclick="slipPickAll(true)">✓ เลือกทั้งหมด</button>
+      <button class="btn btn-light btn-sm" onclick="slipPickAll(false)">✕ ล้างทั้งหมด</button>
+      <span class="muted" id="slipPickCount" style="margin-left:auto"></span>
+    </div>
+    <div id="slipPickList" style="max-height:55vh;overflow-y:auto;border:1px solid var(--line);border-radius:12px"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px">
+      <button class="btn btn-light" onclick="closeModal('slipPickBg')">ยกเลิก</button>
+      <button class="btn btn-ember" id="slipPickGo" onclick="printPickedSlips()">🖨️ พิมพ์สลิป</button>
+    </div>
+  </div>
+</div>
+
 <!-- ============ PAYSLIP ============ -->
 <div class="modal-bg" id="slipBg" onclick="if(event.target===this)closeModal('slipBg')">
   <div class="modal"><button class="close noprint" onclick="closeModal('slipBg')">✕</button>
@@ -955,6 +976,9 @@ let mouEntries = [];       // override การหัก MOU รายงวด
 let docBorrows = [];       // สมุดยืม-คืนเอกสาร
 let mouReady = false;      // true เมื่อรัน jj_mou.sql แล้ว
 let empInfoReady = false;  // true เมื่อรัน jj_employee_info.sql แล้ว (วันเกิด/เบอร์/บัญชี)
+let workDateReady = false; // true เมื่อรัน jj_work_dates.sql แล้ว (วันเริ่มงาน/วันสิ้นสุด)
+let fineEntries = [];      // แก้ไขรายการหักอัตโนมัติรายงวด {id, empId, period, kind, amount}
+let fineReady = false;     // true เมื่อรัน jj_work_dates.sql แล้ว (ตาราง fine_entries)
 let holidays = {};   // 'YYYY-MM-DD' -> {name, mult}
 let devBranch = {};  // device_sn -> branch
 let orgPos = [];     // โครงสร้าง {id, dept, name} จากตาราง org_positions
@@ -977,7 +1001,8 @@ const fromDbEmp = r => ({ id:r.id, code:r.code, nick:r.nick, full:r.full_name||'
   depTarget:+(r.deposit_target??5000), depMonthly:+(r.deposit_monthly??500),
   depOpen:+(r.deposit_opening??0), depOn:r.deposit_on!==false,
   birth:r.birth_date||'', phone:r.phone||'', bankName:r.bank_name||'',
-  bankAcc:r.bank_account||'', bankAccName:r.bank_account_name||'' });
+  bankAcc:r.bank_account||'', bankAccName:r.bank_account_name||'',
+  startDate:r.start_date||'', endDate:r.end_date||'' });
 const toDbEmp = e => ({ code:e.code, nick:e.nick, full_name:e.full||'', dept:e.dept||'',
   branch:e.branch||'', position:e.position||'', photo_url:e.photo||null,
   off_count:e.offCount||0, off_weekdays:e.offWd||'', holiday_pay:!!e.holidayPay,
@@ -987,7 +1012,8 @@ const toDbEmp = e => ({ code:e.code, nick:e.nick, full_name:e.full||'', dept:e.d
   ...(depReady ? { deposit_target:e.depTarget??5000, deposit_monthly:e.depMonthly??500,
                    deposit_opening:e.depOpen??0, deposit_on:e.depOn!==false } : {}),
   ...(empInfoReady ? { birth_date:e.birth||null, phone:e.phone||'', bank_name:e.bankName||'',
-                       bank_account:e.bankAcc||'', bank_account_name:e.bankAccName||'' } : {}) });
+                       bank_account:e.bankAcc||'', bank_account_name:e.bankAccName||'' } : {}),
+  ...(workDateReady ? { start_date:e.startDate||null, end_date:e.endDate||null } : {}) });
 const fromDbAdv = r => ({ id:r.id, empId:r.employee_id, period:r.period, amount:+r.amount,
   date:r.taken_date, note:r.note||'' });
 const fromDbShift = r => ({ id:r.id, name:r.name, start:String(r.start_time).slice(0,5),
@@ -1006,6 +1032,7 @@ const shiftsFor = emp => {
   return list.length ? list : shiftDefs;
 };
 const fromDbDep = r => ({ id:r.id, empId:r.employee_id, period:r.period, amount:+r.amount, note:r.note||'' });
+const fromDbFine = r => ({ id:r.id, empId:r.employee_id, period:r.period, kind:r.kind, amount:+r.amount, note:r.note||'' });
 const fromDbMou = r => ({ id:r.id, empId:r.employee_id, amount:+r.amount, monthly:+r.monthly,
   finalMax:+r.final_max, startPeriod:r.start_period||'', opening:+(r.opening||0),
   docPassport:!!r.doc_passport, docPink:!!r.doc_pink, docComplete:!!r.doc_complete,
@@ -1044,6 +1071,9 @@ async function loadAll(){
     try{ const de = await db.from('deposit_entries').select('*');
          if(!de.error){ depositEntries = (de.data||[]).map(fromDbDep); depReady = true; }
     }catch(_){ depReady = false; /* ยังไม่รัน jj_deposit.sql */ }
+    try{ const fe = await db.from('fine_entries').select('*');
+         if(!fe.error){ fineEntries = (fe.data||[]).map(fromDbFine); fineReady = true; }
+    }catch(_){ fineReady = false; /* ยังไม่รัน jj_work_dates.sql */ }
     try{
       const [ml, me, bo] = await Promise.all([
         db.from('mou_loans').select('*'),
@@ -1062,6 +1092,7 @@ async function loadAll(){
     shiftDefs = (sh.data||[]).map(fromDbShift);
     employees = (em.data||[]).map(fromDbEmp);
     empInfoReady = !!((em.data||[])[0] && 'birth_date' in em.data[0]);
+    workDateReady = !!((em.data||[])[0] && 'start_date' in em.data[0]);
     adjustments = (ad.data||[]).map(fromDbAdj);
     advances = (av.data||[]).map(fromDbAdv);
     if(st.data) settings = { ...settings,
@@ -1476,6 +1507,7 @@ function calcPay(emp, period){
   if(!emp.holidayPay && emp.mode !== 'hourly'){
     for(const h of holiInPeriod){
       if(isOffWd(emp, h.day)) continue;              // ตรงกับวันหยุดประจำอยู่แล้ว ไม่ต้องนับซ้ำ
+      if((emp.startDate && h.day < emp.startDate) || (emp.endDate && h.day > emp.endDate)) continue; // นอกช่วงจ้างงาน
       if(ss.find(s=>s.day===h.day)) holiWorked.push(h);
       else paidHoli.push(h);
     }
@@ -1485,6 +1517,11 @@ function calcPay(emp, period){
   days += paidHoli.length;   // ออฟฟิศ: วันหยุดพิเศษนับเป็นวันทำงานปกติ
   const rg = periodRange(period);
   const dip = daysBetween(rg.from, rg.to);
+  /* ---- เข้า/ออกระหว่างงวด (มีวันเริ่มงาน/วันสิ้นสุด) : รายเดือนคิดเป็นรายวันแทนเหมาเดือน
+     ครอบคลุมถึงคนที่เริ่มงานหลังงวดจบ / ออกไปก่อนงวดเริ่ม แต่มีสแกนหลงมาในงวดด้วย ---- */
+  const partialStart = !!(emp.startDate && emp.startDate > rg.from);
+  const partialEnd   = !!(emp.endDate && emp.endDate < rg.to);
+  const prorate = emp.type==='monthly' && emp.mode!=='hourly' && (partialStart || partialEnd);
   let offDue = 0, offUsed = 0, noOffDays = 0, noOffBonus = 0;
   if(emp.type==='monthly' && !emp.offWd && emp.offCount > 0){
     offDue = emp.offCount;
@@ -1512,13 +1549,15 @@ function calcPay(emp, period){
       const ds = localYMD(d);
       if(ds > stop) break;
       if(ds < firstEver) continue;
+      if(emp.startDate && ds < emp.startDate) continue;   // ยังไม่เริ่มงาน
+      if(emp.endDate && ds > emp.endDate) break;          // ออกจากงานแล้ว ไม่นับต่อ
       const h = holidays[ds];
       if(!wdSet.has(d.getDay()) && !h) continue;      // ไม่ใช่วันห้ามหยุด
       if(ss.find(s=>s.day===ds)) continue;            // มาทำงาน
       mustViol.push({ day:ds, why: h ? '🎌 '+h.name : 'วัน'+WD_TH[d.getDay()] });
     }
   }
-  const mustFine = Math.round(mustViol.length * dRate);   // หักตามฐานเงินเดือน: เงินเดือน÷30 หรือค่าแรงรายวัน
+  // หักตามฐานเงินเดือน: เงินเดือน÷30 หรือค่าแรงรายวัน (ยอดจริงคิดรวม override ด้านล่าง)
 
   /* ---- ข้ามสาขา ---- */
   const crossDays = ss.filter(s=>s.workBranch && emp.branch && s.workBranch !== emp.branch);
@@ -1528,11 +1567,19 @@ function calcPay(emp, period){
   const adds = adjustments.filter(a=>a.empId===emp.id && a.period===period && a.kind==='add');
   const dedu = adjustments.filter(a=>a.empId===emp.id && a.period===period && a.kind==='deduct');
   const addSum = adds.reduce((a,x)=>a+ +x.amount,0) + holiBonus + noOffBonus;
-  const missFine   = Math.round((settings.minFine||0) * missMin);
-  const lateAuto   = (settings.lateFine||0) * lateCount;
-  const singleFine = (settings.singleFine||0) * singleCount;
+  /* ---- รายการหักอัตโนมัติ: มี override รายงวด (fine_entries) แก้ยอดได้ถ้าหักผิด ---- */
+  const fineOv = k => fineReady ? (fineEntries.find(x=>x.empId===emp.id && x.period===period && x.kind===k) || null) : null;
+  const fineOvs = { miss:fineOv('miss'), late:fineOv('late'), single:fineOv('single'), must:fineOv('must') };
+  const missFine0   = Math.round((settings.minFine||0) * missMin);
+  const lateAuto0   = (settings.lateFine||0) * lateCount;
+  const singleFine0 = (settings.singleFine||0) * singleCount;
+  const mustFine0   = Math.round(mustViol.length * dRate);
+  const missFine   = fineOvs.miss   ? Math.max(0, +fineOvs.miss.amount)   : missFine0;
+  const lateAuto   = fineOvs.late   ? Math.max(0, +fineOvs.late.amount)   : lateAuto0;
+  const singleFine = fineOvs.single ? Math.max(0, +fineOvs.single.amount) : singleFine0;
+  const mustFine   = fineOvs.must   ? Math.max(0, +fineOvs.must.amount)   : mustFine0;
   const base = emp.mode==='hourly' ? fullHrs * +emp.rate
-             : emp.type==='monthly' ? (days>0? +emp.rate : 0)
+             : emp.type==='monthly' ? (days>0? (prorate? Math.round(days * dRate) : +emp.rate) : 0)
              : days * +emp.rate;
   const advs   = advances.filter(a=>a.empId===emp.id && a.period===period);
   const advSum = advs.reduce((a,x)=>a+ +x.amount,0);
@@ -1544,6 +1591,8 @@ function calcPay(emp, period){
            dRate, holiDays, holiBonus, paidHoli, holiWorked, holiInPeriod, mustViol, mustFine,
            dep, mou, offDue, offUsed, noOffDays, noOffBonus, wkOffWorked,
            crossDays, byBranch, dip,
+           prorate, partialStart, partialEnd,
+           fineOvs, missFine0, lateAuto0, singleFine0, mustFine0,
            net: base + addSum - deduSum };
 }
 
@@ -1632,6 +1681,45 @@ function editDeposit(empId, period){
     d.override ? d.ded : '');
   if(v === null) return;
   setDepOverride(empId, period, v);
+}
+
+/* ---- แก้ไขรายการหักอัตโนมัติ (หักผิดแก้ยอดได้ · เก็บใน fine_entries รายงวด) ---- */
+const FINE_LABEL = { miss:'หักสาย/ออกก่อน (ตามนาที)', late:'ปรับมาสาย (ต่อครั้ง)',
+                     single:'ปรับลืมตอกบัตร', must:'หักหยุดวันห้ามหยุด' };
+function editFine(empId, period, kind){
+  if(!fineReady) return toast('❌ ต้องรัน sql/jj_work_dates.sql ใน Supabase ก่อน');
+  const e = employees.find(x=>x.id===empId);
+  const p = calcPay(e, period);
+  const auto = { miss:p.missFine0, late:p.lateAuto0, single:p.singleFine0, must:p.mustFine0 }[kind];
+  const cur = p.fineOvs[kind];
+  const v = prompt('✎ '+FINE_LABEL[kind]+' — '+e.nick+' ('+periodLabel(period)+')'+
+    '\nระบบคิดอัตโนมัติ '+THB(auto)+' บาท'+
+    '\n\nใส่ยอดที่ต้องการหักจริง · 0 = ไม่หักงวดนี้ · เว้นว่างแล้วตกลง = กลับเป็นอัตโนมัติ',
+    cur ? cur.amount : '');
+  if(v === null) return;
+  setFineOverride(empId, period, kind, v);
+}
+async function setFineOverride(empId, period, kind, val){
+  if(!fineReady) return toast('❌ ต้องรัน sql/jj_work_dates.sql ใน Supabase ก่อน');
+  const cur = fineEntries.find(x=>x.empId===empId && x.period===period && x.kind===kind);
+  const v = String(val).trim();
+  if(v === ''){
+    if(cur){
+      const { error } = await db.from('fine_entries').delete().eq('id', cur.id);
+      if(error) return dbErr(error,'ลบรายการแก้หัก');
+      fineEntries = fineEntries.filter(x=>x.id!==cur.id);
+      toast('↺ กลับเป็นหักอัตโนมัติ');
+    }
+  } else {
+    const amount = Math.max(0, Math.floor(+v)||0);
+    const { data, error } = await db.from('fine_entries')
+      .upsert({ employee_id:empId, period, kind, amount }, { onConflict:'employee_id,period,kind' })
+      .select().single();
+    if(error) return dbErr(error,'บันทึกแก้หัก');
+    if(cur){ cur.amount = amount; } else fineEntries.push(fromDbFine(data));
+    toast(amount ? 'แก้เป็นหัก '+THB(amount)+' บาท' : 'ไม่หักรายการนี้งวดนี้');
+  }
+  renderPayroll(); renderDetail();
 }
 
 /* ================= DEPOSIT PAGE ================= */
@@ -2233,6 +2321,8 @@ function openEmpForm(id){
   document.getElementById('fCode').value = e? e.code : '';
   document.getElementById('fBirth').value = e? (e.birth||'') : '';
   document.getElementById('fPhone').value = e? (e.phone||'') : '';
+  document.getElementById('fStart').value = e? (e.startDate||'') : '';
+  document.getElementById('fEnd').value = e? (e.endDate||'') : '';
   document.getElementById('fBank').value = e? (e.bankName||'') : '';
   document.getElementById('fBankAcc').value = e? (e.bankAcc||'') : '';
   document.getElementById('fBankAccName').value = e? (e.bankAccName||'') : '';
@@ -2281,6 +2371,8 @@ async function saveEmpForm(){
     code: document.getElementById('fCode').value.trim() || ('M'+Date.now()),
     birth: document.getElementById('fBirth').value || '',
     phone: document.getElementById('fPhone').value.trim(),
+    startDate: document.getElementById('fStart').value || '',
+    endDate: document.getElementById('fEnd').value || '',
     bankName: document.getElementById('fBank').value.trim(),
     bankAcc: document.getElementById('fBankAcc').value.trim(),
     bankAccName: document.getElementById('fBankAccName').value.trim(),
@@ -2327,6 +2419,10 @@ async function saveEmpForm(){
   if(ot==='weekly' && !data.offWd) return toast('❌ เลือกวันหยุดประจำสัปดาห์อย่างน้อย 1 วัน');
   if(!empInfoReady && (data.birth||data.phone||data.bankName||data.bankAcc||data.bankAccName))
     toast('⚠️ วันเกิด/เบอร์/บัญชี ยังไม่ถูกบันทึก — ต้องรัน jj_employee_info.sql ใน Supabase ก่อน');
+  if(!workDateReady && (data.startDate||data.endDate))
+    toast('⚠️ วันเริ่ม/สิ้นสุดงาน ยังไม่ถูกบันทึก — ต้องรัน jj_work_dates.sql ใน Supabase ก่อน');
+  if(data.startDate && data.endDate && data.endDate < data.startDate)
+    return toast('❌ วันสิ้นสุดการทำงาน ต้องไม่ก่อนวันเริ่มงาน');
   busy(true,'กำลังบันทึก…');
   try{
     if(id){
@@ -2581,14 +2677,14 @@ function renderDetail(){
       <div>
         <div class="section-title">เงินเดือนงวด ${period?periodLabel(period):''}</div>
         <div class="tbl-wrap"><table><tbody>
-          <tr><td>ค่าแรง ${isHr?'('+p.fullHrs+' ชม. × '+THB(e.rate)+')':e.type==='monthly'?'(เหมาเดือน)':'('+p.days+' วัน × '+THB(e.rate)+')'}</td><td class="num">${THB2(p.base)}</td></tr>
+          <tr><td>ค่าแรง ${isHr?'('+p.fullHrs+' ชม. × '+THB(e.rate)+')':e.type==='monthly'?(p.prorate?'('+p.days+' วัน × '+THB(Math.round(p.dRate))+' — เข้า/ออกระหว่างงวด คิดรายวัน)':'(เหมาเดือน)'):'('+p.days+' วัน × '+THB(e.rate)+')'}</td><td class="num">${THB2(p.base)}</td></tr>
           ${p.noOffBonus? `<tr><td style="color:var(--green)">＋ เบี้ยไม่หยุด (${p.noOffDays} วัน × ${THB(Math.round(p.dRate))})</td><td class="num" style="color:var(--green)">${THB2(p.noOffBonus)}</td></tr>`:''}
           ${p.holiBonus? `<tr><td style="color:var(--green)">＋ เบี้ยวันหยุดพิเศษ (${p.holiDays.filter(h=>h.ok).length} วัน)</td><td class="num" style="color:var(--green)">${THB2(p.holiBonus)}</td></tr>`:''}
           ${p.adds.map(a=>`<tr><td style="color:var(--green)">＋ ${a.reason} <button class="btn btn-red btn-sm" style="padding:1px 7px" onclick="delAdj(${a.id})">✕</button></td><td class="num" style="color:var(--green)">${THB2(+a.amount)}</td></tr>`).join('')}
-          ${p.missFine? `<tr><td style="color:var(--red)">－ หัก${isH?'ชั่วโมงไม่ครบ':'สาย/ออกก่อน'} (${p.missMin} น. × ${settings.minFine})</td><td class="num" style="color:var(--red)">-${THB2(p.missFine)}</td></tr>`:''}
-          ${p.lateAuto? `<tr><td style="color:var(--red)">－ ปรับมาสาย (${p.lateCount} ครั้ง × ${THB(settings.lateFine)})</td><td class="num" style="color:var(--red)">-${THB2(p.lateAuto)}</td></tr>`:''}
-          ${p.mustFine? `<tr><td style="color:var(--red)">－ หยุดวันห้ามหยุด (${p.mustViol.length} วัน × ${THB(Math.round(p.dRate))})</td><td class="num" style="color:var(--red)">-${THB2(p.mustFine)}</td></tr>`:''}
-          ${p.singleFine? `<tr><td style="color:var(--red)">－ ปรับลืมตอกบัตร (${p.singleCount} ครั้ง × ${THB(settings.singleFine)})</td><td class="num" style="color:var(--red)">-${THB2(p.singleFine)}</td></tr>`:''}
+          ${(p.missFine||p.fineOvs.miss)? `<tr><td style="color:var(--red)">－ หัก${isH?'ชั่วโมงไม่ครบ':'สาย/ออกก่อน'} (${p.missMin} น. × ${settings.minFine})${p.fineOvs.miss?' <span class="chip chip-amber" title="อัตโนมัติ '+THB(p.missFine0)+' บาท">แก้เอง</span>':''} <button class="btn btn-light btn-sm" style="padding:1px 7px" title="แก้ยอดหัก (หักผิดแก้ได้)" onclick="editFine(${e.id},'${period}','miss')">✎</button></td><td class="num" style="color:var(--red)">-${THB2(p.missFine)}</td></tr>`:''}
+          ${(p.lateAuto||p.fineOvs.late)? `<tr><td style="color:var(--red)">－ ปรับมาสาย (${p.lateCount} ครั้ง × ${THB(settings.lateFine)})${p.fineOvs.late?' <span class="chip chip-amber" title="อัตโนมัติ '+THB(p.lateAuto0)+' บาท">แก้เอง</span>':''} <button class="btn btn-light btn-sm" style="padding:1px 7px" title="แก้ยอดหัก (หักผิดแก้ได้)" onclick="editFine(${e.id},'${period}','late')">✎</button></td><td class="num" style="color:var(--red)">-${THB2(p.lateAuto)}</td></tr>`:''}
+          ${(p.mustFine||p.fineOvs.must)? `<tr><td style="color:var(--red)">－ หยุดวันห้ามหยุด (${p.mustViol.length} วัน × ${THB(Math.round(p.dRate))})${p.fineOvs.must?' <span class="chip chip-amber" title="อัตโนมัติ '+THB(p.mustFine0)+' บาท">แก้เอง</span>':''} <button class="btn btn-light btn-sm" style="padding:1px 7px" title="แก้ยอดหัก (หักผิดแก้ได้)" onclick="editFine(${e.id},'${period}','must')">✎</button></td><td class="num" style="color:var(--red)">-${THB2(p.mustFine)}</td></tr>`:''}
+          ${(p.singleFine||p.fineOvs.single)? `<tr><td style="color:var(--red)">－ ปรับลืมตอกบัตร (${p.singleCount} ครั้ง × ${THB(settings.singleFine)})${p.fineOvs.single?' <span class="chip chip-amber" title="อัตโนมัติ '+THB(p.singleFine0)+' บาท">แก้เอง</span>':''} <button class="btn btn-light btn-sm" style="padding:1px 7px" title="แก้ยอดหัก (หักผิดแก้ได้)" onclick="editFine(${e.id},'${period}','single')">✎</button></td><td class="num" style="color:var(--red)">-${THB2(p.singleFine)}</td></tr>`:''}
           ${p.advs.map(a=>`<tr><td style="color:var(--red)">－ เบิกกลางเดือน ${dayLabel(a.date)} <button class="btn btn-red btn-sm" style="padding:1px 7px" onclick="delAdv(${a.id})">✕</button></td><td class="num" style="color:var(--red)">-${THB2(a.amount)}</td></tr>`).join('')}
           ${p.mou && p.mou.loan && p.mou.ded? `<tr><td style="color:var(--red)">－ ผ่อนคืนเงินยืม MOU${p.mou.override?' (แก้เอง)':''} · ผ่อนแล้ว ${THB(p.mou.collected)}/${THB(p.mou.target)}${p.mou.done?' ✓ ครบ':''} <button class="btn btn-light btn-sm" style="padding:1px 7px" onclick="editMou(${e.id},'${period}')">✎</button></td><td class="num" style="color:var(--red)">-${THB2(p.mou.ded)}</td></tr>`
             : p.mou && p.mou.loan && !p.mou.done? `<tr><td class="muted">เงินยืม MOU — ไม่หักงวดนี้${p.mou.override?' (แก้เอง)':''} · ผ่อนแล้ว ${THB(p.mou.collected)}/${THB(p.mou.target)} <button class="btn btn-light btn-sm" style="padding:1px 7px" onclick="editMou(${e.id},'${period}')">✎</button></td><td class="num muted">–</td></tr>`:''}
@@ -2597,6 +2693,10 @@ function renderDetail(){
           ${p.dedu.map(a=>`<tr><td style="color:var(--red)">－ ${a.reason} <button class="btn btn-red btn-sm" style="padding:1px 7px" onclick="delAdj(${a.id})">✕</button></td><td class="num" style="color:var(--red)">-${THB2(+a.amount)}</td></tr>`).join('')}
           <tr><td style="font-weight:700">สุทธิ</td><td class="num" style="font-weight:700;color:var(--green)">${THB2(p.net)}</td></tr>
         </tbody></table></div>
+        ${p.prorate? `<div class="warn-note" style="margin-top:10px;margin-bottom:0;background:#eef3fb;border-color:#c5d5ee;color:#1d4e89">
+          📅 <b>งวดนี้คิดค่าแรงเป็นรายวัน</b> — ${p.partialStart?'เริ่มงาน '+dayLabel(e.startDate):''}${p.partialStart&&p.partialEnd?' · ':''}${p.partialEnd?'สิ้นสุดงาน '+dayLabel(e.endDate):''}<br>
+          <span class="small">${p.days} วัน × ${THB(Math.round(p.dRate))} บาท (เงินเดือน ${THB(e.rate)} ÷ ${settings.monthDiv||30}) = ${THB(p.base)} บาท</span>
+        </div>`:''}
         <div style="display:flex;gap:8px;margin-top:10px">
           <button class="btn btn-green btn-sm" onclick="openAdj(${e.id},'add','${period}')">＋ เพิ่มเงิน / OT / โบนัส</button>
           <button class="btn btn-red btn-sm" onclick="openAdj(${e.id},'deduct','${period}')">－ หักเงิน</button>
@@ -2806,10 +2906,10 @@ function buildSlip(e, period, compact){
   const isH = e.mode==='hours', isHr = e.mode==='hourly';
 
   const dedRows = [];
-  if(p.missFine)   dedRows.push([isH?`ชั่วโมงไม่ครบ (${p.missMin} นาที × ${settings.minFine})`:`มาสาย/ออกก่อนเวลา (${p.missMin} นาที × ${settings.minFine})`, p.missFine]);
-  if(p.lateAuto)   dedRows.push([`ปรับมาสาย (${p.lateCount} ครั้ง × ${THB(settings.lateFine)})`, p.lateAuto]);
-  if(p.singleFine) dedRows.push([`ปรับลืมตอกบัตร (${p.singleCount} ครั้ง × ${THB(settings.singleFine)})`, p.singleFine]);
-  if(p.mustFine) dedRows.push([`หยุดวันห้ามหยุด ${p.mustViol.map(v=>dayLabel(v.day)).join(', ')} (${p.mustViol.length} วัน × ${THB(Math.round(p.dRate))})`, p.mustFine]);
+  if(p.missFine)   dedRows.push([isH?`ชั่วโมงไม่ครบ (${p.missMin} นาที${p.fineOvs.miss?' — ปรับยอดแล้ว':' × '+settings.minFine})`:`มาสาย/ออกก่อนเวลา (${p.missMin} นาที${p.fineOvs.miss?' — ปรับยอดแล้ว':' × '+settings.minFine})`, p.missFine]);
+  if(p.lateAuto)   dedRows.push([`ปรับมาสาย (${p.lateCount} ครั้ง${p.fineOvs.late?' — ปรับยอดแล้ว':' × '+THB(settings.lateFine)})`, p.lateAuto]);
+  if(p.singleFine) dedRows.push([`ปรับลืมตอกบัตร (${p.singleCount} ครั้ง${p.fineOvs.single?' — ปรับยอดแล้ว':' × '+THB(settings.singleFine)})`, p.singleFine]);
+  if(p.mustFine) dedRows.push([`หยุดวันห้ามหยุด ${p.mustViol.map(v=>dayLabel(v.day)).join(', ')} (${p.mustViol.length} วัน${p.fineOvs.must?' — ปรับยอดแล้ว':' × '+THB(Math.round(p.dRate))})`, p.mustFine]);
   p.advs.forEach(a=>dedRows.push([`เบิกล่วงหน้า ${dayLabel(a.date)}${a.note?' — '+a.note:''}`, +a.amount]));
   if(p.dep && p.dep.ded) dedRows.push([`เงินประกัน (สะสม ${THB(p.dep.collected)} / ${THB(p.dep.target)}${p.dep.done?' — ครบแล้ว':''})`, p.dep.ded]);
   if(p.mou && p.mou.ded) dedRows.push([`ผ่อนคืนเงินยืม MOU (ผ่อนแล้ว ${THB(p.mou.collected)} / ${THB(p.mou.target)}${p.mou.done?' — ครบแล้ว':''})`, p.mou.ded]);
@@ -2894,7 +2994,7 @@ function buildSlip(e, period, compact){
       <div>
         <div class="section-title" style="margin:0 0 6px;font-size:13px">รายรับ</div>
         <div class="tbl-wrap"><table><tbody>
-          <tr><td>ค่าแรง ${isHr?'('+p.fullHrs+' ชม.เต็ม × '+THB(e.rate)+')':e.type==='monthly'?'(เหมาเดือน)':'('+p.days+' วัน × '+THB(e.rate)+')'}</td><td class="num">${THB2(p.base)}</td></tr>
+          <tr><td>ค่าแรง ${isHr?'('+p.fullHrs+' ชม.เต็ม × '+THB(e.rate)+')':e.type==='monthly'?(p.prorate?'('+p.days+' วัน × '+THB(Math.round(p.dRate))+' — เข้า/ออกระหว่างงวด คิดรายวัน)':'(เหมาเดือน)'):'('+p.days+' วัน × '+THB(e.rate)+')'}</td><td class="num">${THB2(p.base)}</td></tr>
           ${p.noOffBonus? `<tr><td>เบี้ยไม่หยุด (${p.noOffDays} วัน × ${THB(Math.round(p.dRate))})<br><span style="font-size:10px;color:#6b625b">สิทธิ์หยุด ${p.offDue} วัน · ใช้ไป ${p.offUsed} วัน</span></td><td class="num">${THB2(p.noOffBonus)}</td></tr>`:''}
           ${p.holiDays.filter(h=>h.ok).map(h=>`<tr><td>🎌 ${h.name} ${dayLabel(h.day)} (×${h.mult})</td><td class="num">${THB2(h.bonus)}</td></tr>`).join('')}
           ${p.adds.map(a=>`<tr><td>${a.reason}</td><td class="num">${THB2(+a.amount)}</td></tr>`).join('')}
@@ -3018,9 +3118,8 @@ function openTransferSummary(){
 }
 
 /* ---- พิมพ์สลิปทุกคน/* ---- พิมพ์สลิปทุกคนตามตัวกรองหน้าสรุปเงินเดือน (คนละ 1 หน้า A4) ---- */
-function printAllSlips(){
-  const period = document.getElementById('periodSel').value;
-  if(!period) return toast('❌ ยังไม่มีข้อมูล');
+/* รายชื่อพิมพ์สลิปตามตัวกรองหน้าสรุปเงินเดือน (ใช้ทั้งหน้าต่างเลือกคน และตอนพิมพ์จริง) */
+function slipFilterList(period){
   const bf = (document.getElementById('payBranch')||{}).value || '';
   const q  = (document.getElementById('paySearch').value||'').toLowerCase();
   const df = document.getElementById('payDept').value;
@@ -3032,7 +3131,7 @@ function printAllSlips(){
     (ff==='adv' && p.advSum>0) || (ff==='bonus' && (p.holiBonus>0||p.noOffBonus>0)) ||
     (ff==='cross' && p.crossDays.length>0) || (ff==='must' && p.mustViol.length>0) ||
     (ff==='dep' && p.dep.ded>0) || (ff==='mou' && p.mou.ded>0);
-  const list = employees
+  return employees
     .filter(e=>(e.active || empShiftsInPeriod(e,period).length) &&
                (!bf || e.branch===bf) && (!df || e.dept===df) && (!pf || e.position===pf) &&
                (!mf || e.mode===mf) && empMatch(e, q))
@@ -3041,6 +3140,42 @@ function printAllSlips(){
     .filter(x=>flagOk(x.p))
     .sort((a,b)=> (a.e.branch||'').localeCompare(b.e.branch||'') ||
                   (a.e.dept||'').localeCompare(b.e.dept||'','th') || a.e.nick.localeCompare(b.e.nick,'th'));
+}
+/* ---- หน้าต่างเลือกคนก่อนพิมพ์ (ไม่ต้องพิมพ์ทั้งหมดก็ได้) ---- */
+function openSlipPicker(){
+  const period = document.getElementById('periodSel').value;
+  if(!period) return toast('❌ ยังไม่มีข้อมูล');
+  const list = slipFilterList(period);
+  if(!list.length) return toast('❌ ไม่มีพนักงานตามตัวกรองในงวดนี้');
+  document.getElementById('slipPickList').innerHTML = list.map(({e,p})=>`
+    <label style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-bottom:1px solid var(--line);cursor:pointer">
+      <input type="checkbox" class="slip-pick" value="${e.id}" checked onchange="updSlipPickCount()" style="width:auto">
+      <b style="color:var(--ember-deep)">${e.nick}</b>
+      <span class="muted" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e.full||''}</span>
+      ${branchChip(e)}
+      <span style="font-weight:600;white-space:nowrap">${THB(p.net)} ฿</span>
+    </label>`).join('');
+  updSlipPickCount();
+  document.getElementById('slipPickBg').classList.add('show');
+}
+function slipPickAll(on){ document.querySelectorAll('.slip-pick').forEach(c=>c.checked=on); updSlipPickCount(); }
+function updSlipPickCount(){
+  const n = document.querySelectorAll('.slip-pick:checked').length;
+  document.getElementById('slipPickCount').textContent = 'เลือกแล้ว '+n+' คน';
+  document.getElementById('slipPickGo').textContent = '🖨️ พิมพ์สลิป ('+n+' คน)';
+}
+function printPickedSlips(){
+  const ids = [...document.querySelectorAll('.slip-pick:checked')].map(c=>+c.value);
+  if(!ids.length) return toast('❌ ยังไม่ได้เลือกใครเลย');
+  closeModal('slipPickBg');
+  printAllSlips(ids);
+}
+function printAllSlips(selIds){
+  const period = document.getElementById('periodSel').value;
+  if(!period) return toast('❌ ยังไม่มีข้อมูล');
+  const bf = (document.getElementById('payBranch')||{}).value || '';
+  let list = slipFilterList(period);
+  if(Array.isArray(selIds) && selIds.length) list = list.filter(x=>selIds.includes(x.e.id));
   if(!list.length) return toast('❌ ไม่มีพนักงานตามตัวกรองในงวดนี้');
   busy(true, 'กำลังสร้างสลิป '+list.length+' คน…');
   setTimeout(()=>{
@@ -3627,7 +3762,7 @@ function renderPayroll(){
       <td class="num">${p.singleCount? '<span class="chip chip-red" title="'+p.singleDays.map(s=>dayLabel(s.day)+' '+singleLabel(s.singleKind)).join(', ')+'">'+p.singleCount+'</span>':'–'}</td>
       <td class="num">${p.advSum? '<span style="color:var(--red)">-'+THB(p.advSum)+'</span>':'–'}</td>
       <td class="num clickable" title="เงินประกัน · สะสม ${THB(p.dep.collected)}/${THB(p.dep.target)} — คลิกเพื่อแก้งวดนี้" onclick="event.stopPropagation();editDeposit(${e.id},'${period}')">${p.dep.ded? '<span style="color:var(--red)">-'+THB(p.dep.ded)+'</span>'+(p.dep.override?' <span class="chip chip-amber">✎</span>':'') : (p.dep.done&&p.dep.target? '<span class="chip chip-green">✓</span>':'–')}</td>
-      <td class="num">${THB(p.base)}</td>
+      <td class="num">${THB(p.base)}${p.prorate?' <span class="chip chip-blue" title="เข้า/ออกระหว่างงวด — คิดค่าแรงเป็นรายวัน ('+p.days+' วัน × '+THB(Math.round(p.dRate))+')">วัน</span>':''}</td>
       <td class="num" style="color:${p.addSum?'var(--green)':'inherit'}" title="${[p.noOffBonus?'เบี้ยไม่หยุด '+THB(p.noOffBonus):'',p.holiBonus?'เบี้ยวันหยุดพิเศษ '+THB(p.holiBonus):''].filter(Boolean).join(' · ')}">${p.addSum?'+'+THB(p.addSum):'–'}</td>
       <td class="num" style="color:${p.deduSum?'var(--red)':'inherit'}">${p.deduSum?'-'+THB(p.deduSum):'–'}</td>
       <td class="num" style="font-weight:700">${THB(p.net)}</td>
@@ -3748,6 +3883,10 @@ function startRealtime(){
     .on('postgres_changes', { event:'*', schema:'public', table:'deposit_entries' }, async ()=>{
       try{ const { data } = await db.from('deposit_entries').select('*');
         if(data){ depositEntries = data.map(fromDbDep); rtQueue++; scheduleRtRefresh(); } }catch(_){}
+    })
+    .on('postgres_changes', { event:'*', schema:'public', table:'fine_entries' }, async ()=>{
+      try{ const { data } = await db.from('fine_entries').select('*');
+        if(data){ fineEntries = data.map(fromDbFine); rtQueue++; scheduleRtRefresh(); } }catch(_){}
     })
     .on('postgres_changes', { event:'*', schema:'public', table:'mou_loans' }, async ()=>{
       try{ const { data } = await db.from('mou_loans').select('*');
