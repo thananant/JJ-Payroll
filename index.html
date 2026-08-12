@@ -560,7 +560,7 @@ tr.grp-dept td{background:#faf7f1;font-size:11.5px;font-weight:600;color:var(--i
       </div>
       <div>
         <label>ค่า OT ต่อชั่วโมง (อัตโนมัติ)</label>
-        <p class="muted" style="margin-top:6px">คิดจากค่าแรงของแต่ละคนเอง = <b>เงินเดือน ÷ 30 ÷ 8</b> (เช่น 12,000 → 400/วัน → <b>50 บาท/ชม.</b>) · รายวัน = ค่าแรงวัน ÷ 8 · ใช้กับปุ่ม ＋OT ในตารางเข้างานหน้าข้อมูลพนักงาน</p>
+        <p class="muted" style="margin-top:6px">คิดจากค่าแรงของแต่ละคนเอง = <b>ค่าแรงวัน ÷ (ชั่วโมงกะ − 1 ชม.พัก)</b> เช่น เงินเดือน 12,000 กะ 9 ชม.: 400 ÷ (9−1) = <b>50 บาท/ชม.</b> · 18,000 กะ 12 ชม.: 600 ÷ (12−1) = <b>54.55 บาท/ชม.</b> · ใช้กับปุ่ม ＋OT ในตารางเข้างานหน้าข้อมูลพนักงาน</p>
       </div>
     </div>
 
@@ -2718,9 +2718,15 @@ function renderDetail(){
             <td class="num">${s.hours?s.hours.toFixed(1):'–'}</td>
             <td class="num">${isHr ? (s.fullHours? '<b style="color:var(--green)">'+s.fullHours+' ชม.</b>':'–')
                                    : (s.missMin?'<span style="color:var(--red)">'+s.missMin+' น.</span>':'–')}</td>
-            <td class="num" style="white-space:nowrap">${(()=>{const o=otOf(e.id,period,s.day); const h=o?otHours(o):null;
-              return (o?'<b style="color:var(--green)" title="'+THB(o.amount)+' บาท">+'+(h!=null? h+' ชม.' : THB(o.amount))+'</b> ':'')+
-                `<button class="btn btn-light btn-sm" style="padding:2px 6px;font-size:10.5px" title="เพิ่ม/แก้/ลบ OT วันนี้ (ใส่เป็นชั่วโมง)" onclick="editOT(${e.id},'${s.day}')">${o?'✎':'＋'}OT</button>`;})()}</td>
+            <td class="num" style="white-space:nowrap">${(()=>{const o=otOf(e.id,period,s.day); const h=o?(otHours(o)??''):'';
+              return `<div style="display:inline-flex;gap:3px;align-items:center;vertical-align:middle">
+                <button class="btn btn-light btn-sm" style="padding:2px 9px" title="ลด OT 1 ชม." onclick="stepOT(${e.id},'${s.day}',-1)">−</button>
+                <input type="number" inputmode="decimal" min="0" step="0.5" value="${h}" placeholder="0"
+                  title="ชั่วโมง OT · อัตรา ${THB2(otRateOf(e,s.day))} บ./ชม."
+                  style="width:54px;text-align:center;padding:4px 2px"
+                  onchange="setOTHours(${e.id},'${s.day}',this.value)">
+                <button class="btn btn-light btn-sm" style="padding:2px 9px" title="เพิ่ม OT 1 ชม." onclick="stepOT(${e.id},'${s.day}',1)">＋</button>
+              </div>${o?'<div style="font-size:10.5px;color:var(--green);font-weight:600">+'+THB(o.amount)+' บ.</div>':''}`;})()}</td>
             <td><button class="btn btn-light btn-sm" style="padding:2px 7px" title="แก้เวลาเข้า-ออกวันนี้" onclick="openPunchEdit(${e.id},'${s.day}')">✎</button></td>
           </tr>`;
         }).join('') : '<tr><td colspan="8"><div class="empty">ไม่มีข้อมูลในงวดนี้</div></td></tr>'}
@@ -2864,55 +2870,67 @@ async function delAdj(id){
 }
 
 /* ---- OT รายวัน: ปุ่ม OT ในตารางเข้างาน ใส่เป็น "จำนวนชั่วโมง" ระบบคูณอัตรา OT ให้เอง ----
-   อัตรา OT ต่อชั่วโมง คิดอัตโนมัติจากค่าแรงรายคน = ค่าแรงวัน ÷ 8
-   (รายเดือน: เงินเดือน ÷ 30 ÷ 8 เช่น 12,000 -> 400/วัน -> 50 บาท/ชม. · รายชั่วโมงใช้เรตตัวเอง)
+   อัตรา OT ต่อชั่วโมง = ค่าแรงวัน ÷ (ชั่วโมงกะ − 1 ชม.พัก) — ชั่วโมงกะดูจากกะที่เข้าวันนั้น
+   เช่น รายเดือน 12,000 กะ 9 ชม.: 400 ÷ (9−1) = 50 · 18,000 กะ 12 ชม.: 600 ÷ (12−1) = 54.55
+   รายชั่วโมงใช้เรตตัวเอง · นับชั่วโมงใช้เป้าชั่วโมง/วันแทนชั่วโมงกะ
    เก็บเป็นรายการเพิ่มเงิน "OT <วัน> (X ชม.)" */
-const otRateOf = e => e.mode === 'hourly' ? (+e.rate || 0) : (dailyRate(e) || 0) / 8;
+const otWorkHours = (e, day) => {
+  if(e.mode === 'hours') return +e.target || 10;
+  const rec = day ? (shifts[e.code]||[]).find(x=>x.day===day) : null;
+  let sh = rec && rec.shiftName ? shiftDefs.find(s=>s.name===rec.shiftName) : null;
+  if(!sh && e.shiftId) sh = shiftDefs.find(s=>s.id===e.shiftId) || null;
+  if(!sh) sh = shiftsFor(e)[0] || null;
+  if(!sh) return 9;
+  let d = toMin(sh.end) - toMin(sh.start);
+  if(d <= 0) d += 1440;               // กะข้ามคืน
+  return d / 60;
+};
+const otRateOf = (e, day) =>
+  e.mode === 'hourly' ? (+e.rate || 0)
+                      : (dailyRate(e) || 0) / Math.max(1, otWorkHours(e, day) - 1);
 const otReason = (day, hrs) => 'OT ' + dayLabel(day) + ' (' + hrs + ' ชม.)';
 const otOf = (empId, period, day) =>
   adjustments.find(a=>a.empId===empId && a.period===period && a.kind==='add' &&
                    a.reason.startsWith('OT '+dayLabel(day))) || null;
 const otHours = a => { const m = String((a&&a.reason)||'').match(/\(([\d.]+) ชม\.\)/); return m? +m[1] : null; };
-async function editOT(empId, day){
+async function setOTHours(empId, day, val){
   const e = employees.find(x=>x.id===empId);
-  const rate = otRateOf(e);
+  const rate = otRateOf(e, day);
   if(!rate) return toast('❌ พนักงานคนนี้ยังไม่มีอัตราค่าแรง คิด OT ไม่ได้');
+  const hours = Math.max(0, Math.round((+String(val).trim().replace(',', '.') || 0) * 100) / 100);
   const period = periodOf(day);
   const cur = otOf(empId, period, day);
-  const curH = cur ? (otHours(cur) ?? Math.round(cur.amount / rate * 100) / 100) : '';
-  const v = prompt('⏱ OT — '+e.nick+' · '+dayLabel(day)+' ('+WD_TH[wdOf(day)]+')'+
-    '\nอัตรา OT '+THB2(rate)+' บาท/ชม. '+
-    (e.mode==='hourly' ? '(ตามเรตรายชั่วโมง)' : '(ค่าแรงวัน '+THB(Math.round(dailyRate(e)))+' ÷ 8)')+
-    '\n\nใส่จำนวนชั่วโมง (เช่น 2 หรือ 1.5) · 0 หรือเว้นว่าง = ลบ OT วันนี้ออก', curH);
-  if(v === null) return;
-  const hours = Math.max(0, Math.round((+String(v).trim().replace(',', '.') || 0) * 100) / 100);
   const amount = Math.round(hours * rate);
-  busy(true,'กำลังบันทึก…');
   try{
     if(!hours){
-      if(cur){
-        const { error } = await db.from('adjustments').delete().eq('id', cur.id);
-        if(error) throw error;
-        adjustments = adjustments.filter(a=>a.id!==cur.id);
-        toast('ลบ OT '+dayLabel(day)+' แล้ว');
-      }
+      if(!cur) return;
+      const { error } = await db.from('adjustments').delete().eq('id', cur.id);
+      if(error) throw error;
+      adjustments = adjustments.filter(a=>a.id!==cur.id);
+      toast('ลบ OT '+dayLabel(day)+' แล้ว');
     }else if(cur){
       const { error } = await db.from('adjustments')
         .update({ amount, reason: otReason(day, hours) }).eq('id', cur.id);
       if(error) throw error;
       cur.amount = amount; cur.reason = otReason(day, hours);
-      toast('OT '+dayLabel(day)+' '+hours+' ชม. = '+THB(amount)+' บาท');
+      toast('OT '+dayLabel(day)+' = '+hours+' ชม. ('+THB(amount)+' บ.)');
     }else{
       const { data, error } = await db.from('adjustments')
         .insert({ employee_id:empId, kind:'add', reason:otReason(day, hours), amount, period })
         .select().single();
       if(error) throw error;
       adjustments.push(fromDbAdj(data));
-      toast('＋ OT '+dayLabel(day)+' '+hours+' ชม. = '+THB(amount)+' บาท');
+      toast('＋ OT '+dayLabel(day)+' '+hours+' ชม. ('+THB(amount)+' บ.)');
     }
     renderDetail(); renderPayroll();
   }catch(err){ dbErr(err,'บันทึก OT'); }
-  busy(false);
+}
+function stepOT(empId, day, delta){
+  const e = employees.find(x=>x.id===empId);
+  const rate = otRateOf(e, day);
+  const cur = otOf(empId, periodOf(day), day);
+  const h = cur ? (otHours(cur) ?? (rate ? Math.round(cur.amount / rate * 100) / 100 : 0)) : 0;
+  setOTHours(empId, day, Math.max(0, h + delta));
 }
 
 /* ================= HOLIDAYS PAGE ================= */
