@@ -676,6 +676,10 @@ tr.grp-dept td{background:#faf7f1;font-size:11.5px;font-weight:600;color:var(--i
         </datalist></div>
       <div><label>เลขบัญชี</label><input id="fBankAcc" inputmode="numeric" placeholder="เลขบัญชี / เบอร์พร้อมเพย์"></div>
       <div><label>ชื่อบัญชี</label><input id="fBankAccName" placeholder="ชื่อเจ้าของบัญชี"></div>
+      <div><label>ระบบ K BIZ (กสิกร)</label>
+        <label style="display:flex;align-items:center;gap:8px;font-weight:400;color:var(--ink);background:#faf7f1;border:1px solid var(--line);border-radius:10px;padding:10px 12px;cursor:pointer">
+          <input type="checkbox" id="fKbiz" style="width:auto"> เพิ่มบัญชีใน K BIZ แล้ว (ไฟล์แอดบัญชีจะข้ามคนนี้)
+        </label></div>
       <div><label>รูปพนักงาน (ใส่หรือไม่ก็ได้)</label>
         <div style="display:flex;gap:10px;align-items:center">
           <div id="fPhotoPreview"></div>
@@ -1003,6 +1007,7 @@ let docBorrows = [];       // สมุดยืม-คืนเอกสาร
 let mouReady = false;      // true เมื่อรัน jj_mou.sql แล้ว
 let empInfoReady = false;  // true เมื่อรัน jj_employee_info.sql แล้ว (วันเกิด/เบอร์/บัญชี)
 let workDateReady = false; // true เมื่อรัน jj_work_dates.sql แล้ว (วันเริ่มงาน/วันสิ้นสุด)
+let kbizReady = false;     // true เมื่อรัน jj_kbiz_added.sql แล้ว (จำว่าใครถูกแอดบัญชี K BIZ แล้ว)
 let fineEntries = [];      // แก้ไขรายการหักอัตโนมัติรายงวด {id, empId, period, kind, amount}
 let fineReady = false;     // true เมื่อรัน jj_work_dates.sql แล้ว (ตาราง fine_entries)
 let holidays = {};   // 'YYYY-MM-DD' -> {name, mult}
@@ -1028,7 +1033,7 @@ const fromDbEmp = r => ({ id:r.id, code:r.code, nick:r.nick, full:r.full_name||'
   depOpen:+(r.deposit_opening??0), depOn:r.deposit_on!==false,
   birth:r.birth_date||'', phone:r.phone||'', bankName:r.bank_name||'',
   bankAcc:r.bank_account||'', bankAccName:r.bank_account_name||'',
-  startDate:r.start_date||'', endDate:r.end_date||'' });
+  startDate:r.start_date||'', endDate:r.end_date||'', kbizAdded:r.kbiz_added===true });
 const toDbEmp = e => ({ code:e.code, nick:e.nick, full_name:e.full||'', dept:e.dept||'',
   branch:e.branch||'', position:e.position||'', photo_url:e.photo||null,
   off_count:e.offCount||0, off_weekdays:e.offWd||'', holiday_pay:!!e.holidayPay,
@@ -1039,7 +1044,8 @@ const toDbEmp = e => ({ code:e.code, nick:e.nick, full_name:e.full||'', dept:e.d
                    deposit_opening:e.depOpen??0, deposit_on:e.depOn!==false } : {}),
   ...(empInfoReady ? { birth_date:e.birth||null, phone:e.phone||'', bank_name:e.bankName||'',
                        bank_account:e.bankAcc||'', bank_account_name:e.bankAccName||'' } : {}),
-  ...(workDateReady ? { start_date:e.startDate||null, end_date:e.endDate||null } : {}) });
+  ...(workDateReady ? { start_date:e.startDate||null, end_date:e.endDate||null } : {}),
+  ...(kbizReady ? { kbiz_added:!!e.kbizAdded } : {}) });
 const fromDbAdv = r => ({ id:r.id, empId:r.employee_id, period:r.period, amount:+r.amount,
   date:r.taken_date, note:r.note||'' });
 const fromDbShift = r => ({ id:r.id, name:r.name, start:String(r.start_time).slice(0,5),
@@ -1119,6 +1125,7 @@ async function loadAll(){
     employees = (em.data||[]).map(fromDbEmp);
     empInfoReady = !!((em.data||[])[0] && 'birth_date' in em.data[0]);
     workDateReady = !!((em.data||[])[0] && 'start_date' in em.data[0]);
+    kbizReady = !!((em.data||[])[0] && 'kbiz_added' in em.data[0]);
     adjustments = (ad.data||[]).map(fromDbAdj);
     advances = (av.data||[]).map(fromDbAdv);
     if(st.data) settings = { ...settings,
@@ -2352,6 +2359,7 @@ function openEmpForm(id){
   document.getElementById('fBank').value = e? (e.bankName||'') : '';
   document.getElementById('fBankAcc').value = e? (e.bankAcc||'') : '';
   document.getElementById('fBankAccName').value = e? (e.bankAccName||'') : '';
+  document.getElementById('fKbiz').checked = e? !!e.kbizAdded : false;
   document.getElementById('fBranch').value = e? (e.branch||'') : '';
   const curDept = e? (e.dept||'') : '';
   const depts = orgDepts();
@@ -2402,6 +2410,7 @@ async function saveEmpForm(){
     bankName: document.getElementById('fBank').value.trim(),
     bankAcc: document.getElementById('fBankAcc').value.trim(),
     bankAccName: document.getElementById('fBankAccName').value.trim(),
+    kbizAdded: document.getElementById('fKbiz').checked,
     dept: document.getElementById('fDept').value.trim(),
     branch: document.getElementById('fBranch').value,
     position: document.getElementById('fPos').value.trim(),
@@ -3894,7 +3903,7 @@ function openKbizBranch(mode){
   document.getElementById('kbizTitle').textContent =
     mode==='acc' ? '🏦 K BIZ แอดบัญชี — เลือกสาขา' : '🏦 ไฟล์โอน K BIZ — เลือกสาขา';
   document.getElementById('kbizDesc').textContent =
-    mode==='acc' ? 'ไฟล์ลงทะเบียนบัญชีพนักงานที่ยังทำงานอยู่ (เฉพาะบัญชีกสิกร)'
+    mode==='acc' ? 'ไฟล์ลงทะเบียนบัญชีพนักงาน (เฉพาะบัญชีกสิกร) — ใส่เฉพาะคนที่ยังไม่เคยเพิ่มใน K BIZ'
                  : 'รวมยอดเบิกทั้งงวดต่อคน ของงวดที่เลือกในหน้าเบิกกลางเดือน';
   document.getElementById('kbizBtns').innerHTML =
     ['', ...Object.keys(BR)].map(b=>
@@ -3907,27 +3916,40 @@ function kbizGo(branch){
   if(kbizMode==='acc') exportKbizAccounts(branch); else exportKbizAdv(branch);
 }
 const kbizBrLabel = b => b ? ((BR[b]||{}).t||b) : 'ทุกสาขา';
-/* ---- ไฟล์แอดบัญชีพนักงาน (Beneficiary Upload) — พนักงานที่ยังทำงานอยู่ ตามสาขาที่เลือก ---- */
-function exportKbizAccounts(branch){
-  const rows = [], skipped = [], seen = new Set();
+/* ---- ไฟล์แอดบัญชีพนักงาน (Beneficiary Upload) — เฉพาะคนที่ยังไม่เคยเพิ่มใน K BIZ ---- */
+async function exportKbizAccounts(branch){
+  const rows = [], skipped = [], seen = new Set(), markIds = [];
+  let already = 0;
   const list = employees.filter(e=>e.active && (!branch || e.branch===branch))
     .sort((a,b)=>(a.branch||'').localeCompare(b.branch||'') || a.nick.localeCompare(b.nick,'th'));
   if(!list.length) return toast('❌ ไม่มีพนักงานในสาขา'+kbizBrLabel(branch));
   for(const e of list){
+    if(e.kbizAdded){ already++; continue; }    // เคยเพิ่มใน K BIZ ไปแล้ว — ไม่ใส่ซ้ำ
     const r = kbizRow(e);
     if(r.skip){ skipped.push(e.nick+(e.full?' ('+e.full+')':'')+' — '+r.skip); continue; }
+    markIds.push(e.id);
     if(seen.has(r.acc)) continue;              // บัญชีร่วม (หลายคนใช้บัญชีเดียว) ใส่ครั้งเดียว
     seen.add(r.acc);
     rows.push(['004', r.acc, r.name]);
   }
-  if(!rows.length) return toast('❌ ไม่มีพนักงานที่มีบัญชีกสิกรพร้อมใช้ในสาขา'+kbizBrLabel(branch));
+  if(!rows.length)
+    return alert('✅ ไม่มีบัญชีใหม่ที่ต้องเพิ่ม — สาขา'+kbizBrLabel(branch)+
+      (already? '\nเคยเพิ่มใน K BIZ แล้ว '+already+' คน':'')+
+      (skipped.length? '\n\n⚠️ ใช้ K BIZ ไม่ได้ '+skipped.length+' คน:\n• '+skipped.join('\n• '):''));
   kbizWrite('Beneficiary Upload',
     ['Total No. of Transaction / จำนวนรายการทั้งหมด ', rows.length],
     ['Bank Code / \nรหัสธนาคาร','Account number / \nเลขบัญชีรับเงิน','Account name / \nชื่อบัญชีรับเงิน'],
     rows, 'KBIZ_AddAccount_'+(branch||'ALL')+'_'+localYMD(new Date())+'.xlsx');
-  const msg = '✅ สร้างไฟล์แอดบัญชี ('+kbizBrLabel(branch)+') แล้ว '+rows.length+' บัญชี';
-  if(skipped.length) alert(msg+'\n\n⚠️ ไม่ได้อยู่ในไฟล์ '+skipped.length+' คน:\n• '+skipped.join('\n• '));
-  else toast(msg);
+  alert('✅ สร้างไฟล์แอดบัญชี ('+kbizBrLabel(branch)+') '+rows.length+' บัญชีใหม่'+
+    (already? ' · ข้ามที่เคยเพิ่มแล้ว '+already+' คน':'')+
+    (skipped.length? '\n\n⚠️ ใช้ K BIZ ไม่ได้ '+skipped.length+' คน:\n• '+skipped.join('\n• '):''));
+  if(!kbizReady) return toast('⚠️ ระบบยังจำไม่ได้ว่าใครเพิ่มแล้ว — ต้องรัน jj_kbiz_added.sql ใน Supabase ก่อน');
+  if(confirm('ให้ระบบจำว่า '+markIds.length+' คนในไฟล์นี้ "เพิ่มบัญชีแล้ว" เลยไหม? ครั้งหน้าจะไม่ใส่ซ้ำ\n\n(ถ้ายังไม่ได้อัปโหลดเข้า K BIZ ตอบ Cancel ก่อนได้ — อัปโหลดผ่านแล้วค่อยกดปุ่มนี้ใหม่ หรือติ๊กเองในหน้าแก้ไขพนักงาน)')){
+    const { error } = await db.from('employees').update({ kbiz_added:true }).in('id', markIds);
+    if(error) return dbErr(error,'บันทึกสถานะ K BIZ');
+    for(const id of markIds){ const e = employees.find(x=>x.id===id); if(e) e.kbizAdded = true; }
+    toast('✅ จำแล้ว '+markIds.length+' คน — ครั้งหน้าจะไม่ใส่ซ้ำ');
+  }
 }
 /* ---- ไฟล์โอนเบิกกลางเดือน (Transaction Upload) — รวมยอดเบิกทั้งงวดต่อคน ตามสาขาที่เลือก ---- */
 function exportKbizAdv(branch){
