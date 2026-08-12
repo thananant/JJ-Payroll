@@ -1264,8 +1264,9 @@ async function handleFile(file){
       }
       if(!employees.find(x=>x.code===code) && !newEmpMap.has(code)){
         const fi = fileInfo.get(code);
+        // เจ้าของสั่ง (2026-08-12): พนักงานเข้าใหม่ default รายเดือน 12,000
         newEmpMap.set(code, { code, nick:fi.nick||code, full_name:fi.full, dept:fi.dept,
-          wage_type:'daily', rate:settings.defaultWage,
+          wage_type:'monthly', rate:12000,
           work_mode:'shift', shift_id:null, target_hours:10, active:true });
       }
       const k = code+'|'+d+'|'+t;
@@ -1551,8 +1552,10 @@ function calcPay(emp, period){
   const rg = periodRange(period);
   const dip = daysBetween(rg.from, rg.to);
   /* ---- เข้า/ออกระหว่างงวด (มีวันเริ่มงาน/วันสิ้นสุด) : รายเดือนคิดเป็นรายวันแทนเหมาเดือน
-     ครอบคลุมถึงคนที่เริ่มงานหลังงวดจบ / ออกไปก่อนงวดเริ่ม แต่มีสแกนหลงมาในงวดด้วย ---- */
-  const partialStart = !!(emp.startDate && emp.startDate > rg.from);
+     ครอบคลุมถึงคนที่เริ่มงานหลังงวดจบ / ออกไปก่อนงวดเริ่ม แต่มีสแกนหลงมาในงวดด้วย
+     ไม่ได้กรอกวันเริ่มงาน -> ใช้วันสแกนแรกในระบบแทน (คนเข้าใหม่กลางงวดคิดรายวันอัตโนมัติ) ---- */
+  const effStart = emp.startDate || ((shifts[emp.code]||[])[0]||{}).day || '';
+  const partialStart = !!(effStart && effStart > rg.from);
   const partialEnd   = !!(emp.endDate && emp.endDate < rg.to);
   const prorate = emp.type==='monthly' && emp.mode!=='hourly' && (partialStart || partialEnd);
   let offDue = 0, offUsed = 0, noOffDays = 0, noOffBonus = 0;
@@ -1624,7 +1627,7 @@ function calcPay(emp, period){
            dRate, holiDays, holiBonus, paidHoli, holiWorked, holiInPeriod, mustViol, mustFine,
            dep, mou, offDue, offUsed, noOffDays, noOffBonus, wkOffWorked,
            crossDays, byBranch, dip,
-           prorate, partialStart, partialEnd,
+           prorate, partialStart, partialEnd, effStart,
            fineOvs, missFine0, lateAuto0, singleFine0, mustFine0,
            net: base + addSum - deduSum };
 }
@@ -2729,7 +2732,7 @@ function renderDetail(){
           <tr><td style="font-weight:700">สุทธิ</td><td class="num" style="font-weight:700;color:var(--green)">${THB2(p.net)}</td></tr>
         </tbody></table></div>
         ${p.prorate? `<div class="warn-note" style="margin-top:10px;margin-bottom:0;background:#eef3fb;border-color:#c5d5ee;color:#1d4e89">
-          📅 <b>งวดนี้คิดค่าแรงเป็นรายวัน</b> — ${p.partialStart?'เริ่มงาน '+dayLabel(e.startDate):''}${p.partialStart&&p.partialEnd?' · ':''}${p.partialEnd?'สิ้นสุดงาน '+dayLabel(e.endDate):''}<br>
+          📅 <b>งวดนี้คิดค่าแรงเป็นรายวัน</b> — ${p.partialStart?'เริ่มงาน '+dayLabel(p.effStart)+(e.startDate?'':' (จากวันสแกนแรก)'):''}${p.partialStart&&p.partialEnd?' · ':''}${p.partialEnd?'สิ้นสุดงาน '+dayLabel(e.endDate):''}<br>
           <span class="small">${p.days} วัน × ${THB(Math.round(p.dRate))} บาท (เงินเดือน ${THB(e.rate)} ÷ ${settings.monthDiv||30}) = ${THB(p.base)} บาท</span>
         </div>`:''}
         <div style="display:flex;gap:8px;margin-top:10px">
