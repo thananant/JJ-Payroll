@@ -189,7 +189,7 @@ async function runScheduled(event, env) {
  *  · อนุโลมเข้า/ออก ตาม in_grace / out_grace ของแต่ละกะ
  *  · Parttime = work_mode 'hourly' · ออฟฟิศสแกนที่ลาดพร้าว = ไม่ใช่ข้ามสาขา
  * ============================================================= */
-const BRT = { JJLP: 'ลาดพร้าว', JJRD: 'รัชดา', OFFICE: 'ออฟฟิศ' };
+const BRT = { JJLP: 'ลาดพร้าว', JJRD: 'รัชดา', JJCK: 'ครัวกลาง', OFFICE: 'ออฟฟิศ' };
 const brName = (b) => BRT[b] || (b || 'ไม่ระบุสาขา');
 
 /* ---------- โหลดข้อมูลของ 1 วันทำงาน (business day) ---------- */
@@ -294,6 +294,7 @@ function computeRecs(data, nowBizMin) {
     for (const t of ts) { const b = data.devBranch[t.sn]; if (b) cnt[b] = (cnt[b] || 0) + 1; }
     let wb = Object.keys(cnt).sort((a, b) => cnt[b] - cnt[a])[0] || '';
     if (e && e.branch === 'OFFICE' && wb === 'JJLP') wb = 'OFFICE';
+    if (e && e.branch === 'JJCK' && wb === 'JJLP') wb = 'JJCK';   // ครัวกลางใช้เครื่องสแกนลาดพร้าว ไม่ใช่ข้ามสาขา
 
     const mode = e ? (e.work_mode || 'shift') : 'shift';
     const rec = { code, wb, mode, inM: ts[0].m, outM: ts[ts.length - 1].m,
@@ -414,7 +415,7 @@ function branchList(data, recs) {
   const set = new Set();
   for (const e of data.emps.values()) if (e.branch) set.add(e.branch);
   for (const r of recs.values()) if (r.wb) set.add(r.wb);
-  const main = ['JJLP', 'JJRD', 'OFFICE'];
+  const main = ['JJLP', 'JJRD', 'JJCK', 'OFFICE'];
   const rest = [...set].filter((b) => !main.includes(b)).sort();
   return [...main.filter((b) => set.has(b)), ...rest];
 }
