@@ -313,7 +313,7 @@ tr.grp-dept td{background:#faf7f1;font-size:11.5px;font-weight:600;color:var(--i
     <input type="search" id="empSearch" placeholder="ค้นหาชื่อ / รหัส…" oninput="renderEmp()" style="max-width:230px">
     <select id="empBranchFilter" onchange="renderEmp()" style="max-width:150px">
       <option value="">ทุกสาขา</option><option value="JJLP">ลาดพร้าว</option>
-      <option value="JJRD">รัชดา</option><option value="OFFICE">ออฟฟิศ</option>
+      <option value="JJRD">รัชดา</option><option value="JJCK">ครัวกลาง</option><option value="OFFICE">ออฟฟิศ</option>
     </select>
     <select id="empDeptFilter" onchange="renderEmp()" style="max-width:170px"><option value="">ทุกแผนก</option></select>
     <select id="empPosFilter" onchange="renderEmp()" style="max-width:170px"><option value="">ทุกตำแหน่ง</option></select>
@@ -333,7 +333,7 @@ tr.grp-dept td{background:#faf7f1;font-size:11.5px;font-weight:600;color:var(--i
     <input type="search" id="detailSearch" placeholder="ค้นหาชื่อ / รหัส…" oninput="renderDetailSelector();renderDetail()" style="max-width:220px">
     <select id="detailBranch" onchange="renderDetailSelector();renderDetail()" style="width:auto;min-width:140px">
       <option value="">ทุกสาขา</option><option value="JJLP">ลาดพร้าว</option>
-      <option value="JJRD">รัชดา</option><option value="OFFICE">ออฟฟิศ</option>
+      <option value="JJRD">รัชดา</option><option value="JJCK">ครัวกลาง</option><option value="OFFICE">ออฟฟิศ</option>
     </select>
     <select id="detailDept" onchange="renderDetailSelector();renderDetail()" style="width:auto;min-width:150px"><option value="">ทุกแผนก</option></select>
     <select id="detailPos" onchange="renderDetailSelector();renderDetail()" style="width:auto;min-width:150px"><option value="">ทุกตำแหน่ง</option></select>
@@ -359,7 +359,7 @@ tr.grp-dept td{background:#faf7f1;font-size:11.5px;font-weight:600;color:var(--i
     </label>
     <select id="advBranch" onchange="renderAdv()" style="width:auto;min-width:150px">
       <option value="">ทุกสาขา</option><option value="JJLP">ลาดพร้าว</option>
-      <option value="JJRD">รัชดา</option><option value="OFFICE">ออฟฟิศ</option>
+      <option value="JJRD">รัชดา</option><option value="JJCK">ครัวกลาง</option><option value="OFFICE">ออฟฟิศ</option>
     </select>
     <input type="search" id="advSearch" placeholder="ค้นหาชื่อ…" oninput="renderAdv()" style="max-width:200px">
     <span style="flex:1"></span>
@@ -379,7 +379,7 @@ tr.grp-dept td{background:#faf7f1;font-size:11.5px;font-weight:600;color:var(--i
     </label>
     <select id="calBranch" onchange="renderCalendar()" style="width:auto;min-width:140px">
       <option value="">ทุกสาขา</option><option value="JJLP">ลาดพร้าว</option>
-      <option value="JJRD">รัชดา</option><option value="OFFICE">ออฟฟิศ</option>
+      <option value="JJRD">รัชดา</option><option value="JJCK">ครัวกลาง</option><option value="OFFICE">ออฟฟิศ</option>
     </select>
     <span class="muted" id="calSummary"></span>
   </div>
@@ -396,7 +396,7 @@ tr.grp-dept td{background:#faf7f1;font-size:11.5px;font-weight:600;color:var(--i
     <input type="search" id="paySearch" placeholder="ค้นหาชื่อ / รหัส / ตำแหน่ง…" oninput="renderPayroll()" style="max-width:230px">
     <select id="payBranch" onchange="renderPayroll()" style="width:auto;min-width:140px">
       <option value="">ทุกสาขา</option><option value="JJLP">ลาดพร้าว</option>
-      <option value="JJRD">รัชดา</option><option value="OFFICE">ออฟฟิศ</option>
+      <option value="JJRD">รัชดา</option><option value="JJCK">ครัวกลาง</option><option value="OFFICE">ออฟฟิศ</option>
     </select>
     <select id="payDept" onchange="renderPayroll()" style="width:auto;min-width:150px"><option value="">ทุกแผนก</option></select>
     <select id="payPos" onchange="renderPayroll()" style="width:auto;min-width:150px"><option value="">ทุกตำแหน่ง</option></select>
@@ -436,7 +436,7 @@ tr.grp-dept td{background:#faf7f1;font-size:11.5px;font-weight:600;color:var(--i
     </label>
     <select id="depBranch" onchange="renderDeposit()" style="width:auto;min-width:150px">
       <option value="">ทุกสาขา</option><option value="JJLP">ลาดพร้าว</option>
-      <option value="JJRD">รัชดา</option><option value="OFFICE">ออฟฟิศ</option>
+      <option value="JJRD">รัชดา</option><option value="JJCK">ครัวกลาง</option><option value="OFFICE">ออฟฟิศ</option>
     </select>
     <label style="margin:0;display:flex;align-items:center;gap:8px;font-size:14px">เริ่มหักตั้งแต่งวด:
       <select id="depStartSel" onchange="saveSetting('dep_start', this.value)" style="width:auto;min-width:180px"></select>
@@ -459,7 +459,7 @@ tr.grp-dept td{background:#faf7f1;font-size:11.5px;font-weight:600;color:var(--i
     </label>
     <select id="mouBranch" onchange="renderMou()" style="width:auto;min-width:150px">
       <option value="">ทุกสาขา</option><option value="JJLP">ลาดพร้าว</option>
-      <option value="JJRD">รัชดา</option><option value="OFFICE">ออฟฟิศ</option>
+      <option value="JJRD">รัชดา</option><option value="JJCK">ครัวกลาง</option><option value="OFFICE">ออฟฟิศ</option>
     </select>
     <select id="mouStatus" onchange="renderMou()" style="width:auto;min-width:180px">
       <option value="">ทุกสถานะ</option>
@@ -703,6 +703,7 @@ tr.grp-dept td{background:#faf7f1;font-size:11.5px;font-weight:600;color:var(--i
           <option value="">– อัตโนมัติตามแผนก –</option>
           <option value="JJLP">ลาดพร้าว (JJLP)</option>
           <option value="JJRD">รัชดา (JJRD)</option>
+          <option value="JJCK">ครัวกลาง (JJCK)</option>
           <option value="OFFICE">ส่วนกลาง / ออฟฟิศ</option>
         </select></div>
       <div><label>แผนก</label>
@@ -1397,6 +1398,7 @@ function recomputeAll(){
     rec.workBranch = Object.keys(snCnt).sort((a,b)=>snCnt[b]-snCnt[a])[0] || '';
     // ออฟฟิศใช้เครื่องสแกนร่วมกับลาดพร้าว -> คนสังกัดออฟฟิศสแกนที่เครื่องลาดพร้าว = ทำงานออฟฟิศปกติ ไม่ใช่ข้ามสาขา
     if(emp && emp.branch === 'OFFICE' && rec.workBranch === 'JJLP') rec.workBranch = 'OFFICE';
+    if(emp && emp.branch === 'JJCK' && rec.workBranch === 'JJLP') rec.workBranch = 'JJCK';   // ครัวกลางใช้เครื่องสแกนลาดพร้าว ไม่ใช่ข้ามสาขา
 
     if(emp && emp.mode==='hourly'){
       rec.in = ts[0]; rec.out = ts[ts.length-1];
@@ -2208,7 +2210,7 @@ async function delShift(id){
 }
 
 /* ================= EMPLOYEES PAGE ================= */
-const BR = { JJLP:{t:'ลาดพร้าว', c:'chip-blue'}, JJRD:{t:'รัชดา', c:'chip-violet'}, OFFICE:{t:'ออฟฟิศ', c:'chip-amber'} };
+const BR = { JJLP:{t:'ลาดพร้าว', c:'chip-blue'}, JJRD:{t:'รัชดา', c:'chip-violet'}, JJCK:{t:'ครัวกลาง', c:'chip-green'}, OFFICE:{t:'ออฟฟิศ', c:'chip-amber'} };
 const branchChip = e => { const b = BR[e.branch]; return b? `<span class="chip ${b.c}">${b.t}</span>` : '<span class="chip chip-gray">–</span>'; };
 const avatar = (e, size) => e.photo
   ? `<img src="${e.photo}" style="width:${size}px;height:${size}px;border-radius:${Math.round(size/4)}px;object-fit:cover;background:#eee" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'ava',textContent:'${(e.nick||'?')[0]}',style:'width:${size}px;height:${size}px;border-radius:${Math.round(size/4)}px;background:linear-gradient(160deg,#ff922b,#e8590c);color:#fff;display:flex;align-items:center;justify-content:center;font-family:Prompt,sans-serif;font-size:${Math.round(size/2.4)}px;font-weight:600'}))">`
@@ -3424,7 +3426,7 @@ function openAdvSheet(){
   if(!period) return toast('❌ ยังไม่มีข้อมูลงวด');
   const r = periodRange(period);
   const bf = document.getElementById('advBranch').value;
-  const branches = bf ? [bf] : ['JJLP','JJRD','OFFICE'];
+  const branches = bf ? [bf] : ['JJLP','JJRD','JJCK','OFFICE'];
 
   const page = (b) => {
     const list = employees.filter(e=>e.active && e.branch===b)
@@ -3560,7 +3562,7 @@ function renderToday(){
     return Math.max(0, Math.round((r.in - best.s)/60000) - (best.sh.inGrace||0));
   };
 
-  const branches = ['JJLP','JJRD','OFFICE'];
+  const branches = ['JJLP','JJRD','JJCK','OFFICE'];
   let html = '<div style="display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(min(420px,100%),1fr));align-items:start">';
   let tIn=0, tLate=0, tOff=0;
 
@@ -3712,8 +3714,8 @@ function dayMap(period, branch){
   }
   return m;
 }
-const BR_SHORT = { JJLP:'ลพ.', JJRD:'รช.', OFFICE:'ออฟ' };
-const BR_COLOR = { JJLP:'#1971c2', JJRD:'#6741d9', OFFICE:'#b7791f' };
+const BR_SHORT = { JJLP:'ลพ.', JJRD:'รช.', JJCK:'ครก.', OFFICE:'ออฟ' };
+const BR_COLOR = { JJLP:'#1971c2', JJRD:'#6741d9', JJCK:'#2f9e44', OFFICE:'#b7791f' };
 function renderCalendar(){
   const period = document.getElementById('calPeriodSel').value || allPeriods()[0] || '';
   const grid = document.getElementById('calGrid');
@@ -3743,7 +3745,7 @@ function renderCalendar(){
       byShift[k] = (byShift[k]||0)+1;
     });
     const brLine = cnt && !bf
-      ? ['JJLP','JJRD','OFFICE','?'].filter(b=>byBr[b])
+      ? ['JJLP','JJRD','JJCK','OFFICE','?'].filter(b=>byBr[b])
           .map(b=>`<b style="color:${BR_COLOR[b]||'#6b625b'}">${BR_SHORT[b]||'?'} ${byBr[b]}</b>`).join(' · ')
       : '';
     const shLine = cnt? Object.entries(byShift).map(([k,v])=>k+' '+v).join(' · ') : '';
@@ -3759,7 +3761,7 @@ function renderCalendar(){
   grid.innerHTML = html;
   const mBr = {};
   Object.values(dm).forEach(a=>a.forEach(({wb})=>{ mBr[wb||'?']=(mBr[wb||'?']||0)+1; }));
-  const brSum = !bf ? ['JJLP','JJRD','OFFICE'].filter(b=>mBr[b])
+  const brSum = !bf ? ['JJLP','JJRD','JJCK','OFFICE'].filter(b=>mBr[b])
       .map(b=>`${(BR[b]||{}).t} ${mBr[b].toLocaleString()}`).join(' · ') : '';
   document.getElementById('calSummary').innerHTML =
     totDays? `เปิดงาน ${totDays} วัน · รวม ${totMan.toLocaleString()} คน-วัน · เฉลี่ย ${(totMan/totDays).toFixed(1)} คน/วัน${brSum? ' &nbsp;|&nbsp; '+brSum:''}` : '';
