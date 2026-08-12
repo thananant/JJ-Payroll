@@ -321,6 +321,7 @@ tr.grp-dept td{background:#faf7f1;font-size:11.5px;font-weight:600;color:var(--i
       <option value="">ทุกสถานะ</option><option value="1">ทำงานอยู่</option><option value="0">พ้นสภาพ</option>
     </select>
     <span style="flex:1"></span>
+    <button class="btn btn-light" title="ไฟล์ Excel สำหรับอัปโหลดแอดบัญชีพนักงานใน K BIZ (เฉพาะบัญชีกสิกร)" onclick="exportKbizAccounts()">🏦 K BIZ แอดบัญชี</button>
     <button class="btn btn-ember" onclick="openEmpForm()">＋ เพิ่มพนักงาน</button>
   </div>
   <div class="tbl-wrap"><table id="empTable"></table></div>
@@ -362,6 +363,7 @@ tr.grp-dept td{background:#faf7f1;font-size:11.5px;font-weight:600;color:var(--i
     </select>
     <input type="search" id="advSearch" placeholder="ค้นหาชื่อ…" oninput="renderAdv()" style="max-width:200px">
     <span style="flex:1"></span>
+    <button class="btn btn-light" title="ไฟล์ Excel สำหรับอัปโหลดโอนเงินใน K BIZ (รวมยอดเบิกทั้งงวดต่อคน)" onclick="exportKbizAdv()">🏦 ไฟล์โอน K BIZ</button>
     <button class="btn btn-light" onclick="openAdvSheet()">🖨️ แบบฟอร์มเบิก (พิมพ์)</button>
   </div>
   <div class="muted" id="advInfo" style="margin-bottom:10px"></div>
@@ -3847,6 +3849,103 @@ function exportPayrollXlsx(){
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Payroll '+period);
   XLSX.writeFile(wb, 'payroll_'+period+'.xlsx');
+}
+
+/* ================= K BIZ (กสิกร) — ไฟล์อัปโหลดแอดบัญชี + ไฟล์โอนเบิกกลางเดือน =================
+   ตามเทมเพลทธนาคาร: รับเฉพาะบัญชีกสิกร (รหัส 004) · เลขบัญชี 10 หลัก · ชื่อบัญชี ≤ 50 ตัวอักษร
+   ไฟล์โอน: วันที่เงินเข้าต้องเป็นวันอนาคต (พรุ่งนี้ขึ้นไป ไม่เกิน 1 ปี) รูปแบบ DD/MM/YYYY (ค.ศ.) */
+const isKbank = b => /กสิกร|kbank|kasikorn/i.test(b||'');
+const cleanAcc = a => String(a||'').replace(/\D/g,'');
+function kbizRow(e){   // ใช้ได้คืน {acc, name} · ใช้ไม่ได้คืน {skip: เหตุผล}
+  if(!isKbank(e.bankName)) return { skip: e.bankName==='เงินสด' ? 'รับเงินสด'
+    : e.bankName ? 'ไม่ใช่บัญชีกสิกร ('+e.bankName+')' : 'ยังไม่ใส่ธนาคาร' };
+  const acc = cleanAcc(e.bankAcc);
+  if(acc.length !== 10) return { skip: acc ? 'เลขบัญชีไม่ครบ 10 หลัก (มี '+acc.length+' หลัก)' : 'ยังไม่ใส่เลขบัญชี' };
+  return { acc, name: String(e.bankAccName || e.full || e.nick || '').slice(0,50) };
+}
+function kbizWrite(sheetName, row1, headers, dataRows, fname, amountCol){
+  const ws = XLSX.utils.aoa_to_sheet([row1, [], headers, ...dataRows]);
+  if(amountCol != null){
+    for(let i=0; i<dataRows.length; i++){
+      const c = ws[XLSX.utils.encode_cell({r:3+i, c:amountCol})];
+      if(c && c.t==='n') c.z = '#,##0.00';
+    }
+    if(ws['D1'] && ws['D1'].t==='n') ws['D1'].z = '#,##0.00';
+  }
+  ws['!cols'] = [{wch:12},{wch:18},{wch:36},{wch:13},{wch:17}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, sheetName);
+  XLSX.writeFile(wb, fname);
+}
+/* ---- ไฟล์แอดบัญชีพนักงาน (Beneficiary Upload) — พนักงานที่ยังทำงานอยู่ทุกคน ---- */
+function exportKbizAccounts(){
+  const rows = [], skipped = [], seen = new Set();
+  const list = employees.filter(e=>e.active)
+    .sort((a,b)=>(a.branch||'').localeCompare(b.branch||'') || a.nick.localeCompare(b.nick,'th'));
+  for(const e of list){
+    const r = kbizRow(e);
+    if(r.skip){ skipped.push(e.nick+(e.full?' ('+e.full+')':'')+' — '+r.skip); continue; }
+    if(seen.has(r.acc)) continue;              // บัญชีร่วม (หลายคนใช้บัญชีเดียว) ใส่ครั้งเดียว
+    seen.add(r.acc);
+    rows.push(['004', r.acc, r.name]);
+  }
+  if(!rows.length) return toast('❌ ไม่มีพนักงานที่มีบัญชีกสิกรพร้อมใช้');
+  kbizWrite('Beneficiary Upload',
+    ['Total No. of Transaction / จำนวนรายการทั้งหมด ', rows.length],
+    ['Bank Code / \nรหัสธนาคาร','Account number / \nเลขบัญชีรับเงิน','Account name / \nชื่อบัญชีรับเงิน'],
+    rows, 'KBIZ_AddAccount_'+localYMD(new Date())+'.xlsx');
+  const msg = '✅ สร้างไฟล์แอดบัญชีแล้ว '+rows.length+' บัญชี';
+  if(skipped.length) alert(msg+'\n\n⚠️ ไม่ได้อยู่ในไฟล์ '+skipped.length+' คน:\n• '+skipped.join('\n• '));
+  else toast(msg);
+}
+/* ---- ไฟล์โอนเบิกกลางเดือน (Transaction Upload) — รวมยอดเบิกทั้งงวดต่อคน ตามตัวกรองหน้าเบิก ---- */
+function exportKbizAdv(){
+  const period = document.getElementById('advPeriodSel').value || allPeriods()[0] || '';
+  if(!period) return toast('❌ ยังไม่มีข้อมูล');
+  const bf = document.getElementById('advBranch').value;
+  const q = (document.getElementById('advSearch').value||'').toLowerCase();
+  const list = employees.filter(e=>(!bf||e.branch===bf) &&
+      (!q || (e.nick+' '+e.full+' '+e.dept).toLowerCase().includes(q)))
+    .map(e=>({e, taken: advances.filter(a=>a.empId===e.id && a.period===period)
+                               .reduce((s,x)=>s+ +x.amount,0)}))
+    .filter(x=>x.taken>0)
+    .sort((a,b)=>(a.e.branch||'').localeCompare(b.e.branch||'') || a.e.nick.localeCompare(b.e.nick,'th'));
+  if(!list.length) return toast('❌ งวดนี้ยังไม่มีรายการเบิก');
+  const p2 = n => String(n).padStart(2,'0');
+  const tm = new Date(); tm.setDate(tm.getDate()+1);   // ธนาคารบังคับวันอนาคต
+  const defD = p2(tm.getDate())+'/'+p2(tm.getMonth()+1)+'/'+tm.getFullYear();
+  let eff = prompt('📅 วันที่ให้เงินเข้าบัญชี (วัน/เดือน/ปี ค.ศ.)\nธนาคารรับเฉพาะวันพรุ่งนี้เป็นต้นไป ไม่เกิน 1 ปี', defD);
+  if(eff === null) return;
+  eff = eff.trim();
+  const m = eff.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if(!m) return toast('❌ รูปแบบวันที่ต้องเป็น DD/MM/YYYY เช่น '+defD);
+  const effD = new Date(+m[3], +m[2]-1, +m[1]);
+  if(!(effD > new Date())) return toast('❌ ต้องเป็นวันพรุ่งนี้เป็นต้นไป (ธนาคารไม่รับวันนี้/ย้อนหลัง)');
+  const byAcc = new Map();   // บัญชีร่วม รวมยอดเป็นแถวเดียว กันธนาคารตีกลับ
+  const skipped = [];
+  for(const {e, taken} of list){
+    const r = kbizRow(e);
+    if(r.skip){ skipped.push(e.nick+' '+THB(taken)+' บ. — '+r.skip); continue; }
+    if(byAcc.has(r.acc)){ const x = byAcc.get(r.acc); x.amount += taken; x.names.push(e.nick); }
+    else byAcc.set(r.acc, { name:r.name, amount:taken, names:[e.nick] });
+  }
+  if(!byAcc.size){
+    return alert('❌ ไม่มีรายการที่โอนผ่าน K BIZ ได้เลย\n\n• '+skipped.join('\n• '));
+  }
+  const rows = [...byAcc.entries()].map(([acc,x])=>['004', acc, x.name, x.amount, eff]);
+  const total = rows.reduce((s,r)=>s+r[3],0);
+  kbizWrite('Transaction Upload',
+    ['Total No. of Transaction / จำนวนรายการทั้งหมด ', rows.length,
+     'Total Amount / จำนวนเงินทั้งหมด ', total],
+    ['Bank Code / \nรหัสธนาคาร','Account number / \nเลขบัญชีรับเงิน','Account name / \nชื่อบัญชีรับเงิน',
+     'Amount/ \nจำนวนเงิน','Effective Date /\nวันที่เงินเข้าบัญชี\n(DD/MM/YYYY) '],
+    rows, 'KBIZ_Advance_'+period+'.xlsx', 3);
+  const joint = [...byAcc.values()].filter(x=>x.names.length>1)
+    .map(x=>x.names.join('+')+' รวม '+THB(x.amount)+' บ. (บัญชีร่วม)');
+  alert('✅ สร้างไฟล์โอนเบิกกลางเดือน '+periodLabel(period)+'\n'+
+    rows.length+' รายการ · รวม '+THB(total)+' บาท · เงินเข้า '+eff+
+    (joint.length? '\n\n🔗 '+joint.join('\n'):'')+
+    (skipped.length? '\n\n⚠️ ไม่อยู่ในไฟล์ '+skipped.length+' คน (ต้องจ่ายเอง):\n• '+skipped.join('\n• '):''));
 }
 
 /* ================= สำรองข้อมูล (แผนฟรีไม่มี backup อัตโนมัติ) ================= */
