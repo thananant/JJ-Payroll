@@ -559,9 +559,8 @@ tr.grp-dept td{background:#faf7f1;font-size:11.5px;font-weight:600;color:var(--i
         <p class="muted" style="margin-top:6px">วันที่ตอกบัตรครั้งเดียว (ลืมเข้า หรือ ลืมออก)</p>
       </div>
       <div>
-        <label>ค่า OT (บาท/ชั่วโมง)</label>
-        <input type="number" id="setOtRate" value="0" onchange="saveSetting('ot_rate', +this.value)">
-        <p class="muted" style="margin-top:6px">ใช้กับปุ่ม ＋OT ในตารางเข้างานหน้าข้อมูลพนักงาน — ใส่จำนวนชั่วโมงแล้วระบบคูณอัตรานี้ให้เอง</p>
+        <label>ค่า OT ต่อชั่วโมง (อัตโนมัติ)</label>
+        <p class="muted" style="margin-top:6px">คิดจากค่าแรงของแต่ละคนเอง = <b>เงินเดือน ÷ 30 ÷ 8</b> (เช่น 12,000 → 400/วัน → <b>50 บาท/ชม.</b>) · รายวัน = ค่าแรงวัน ÷ 8 · ใช้กับปุ่ม ＋OT ในตารางเข้างานหน้าข้อมูลพนักงาน</p>
       </div>
     </div>
 
@@ -1144,14 +1143,14 @@ async function loadAll(){
       hourlyStart:(st.data.hourly_start||'18:00').slice(0,5), hourlyEnd:(st.data.hourly_end||'00:00').slice(0,5),
       hourlyMax:+(st.data.hourly_max??6),
       mustWorkDays:st.data.must_work_days??'5,6,0', mustWorkFine:+(st.data.must_work_fine??400),
-      depStart:st.data.dep_start??'', otRate:+(st.data.ot_rate??0) };
+      depStart:st.data.dep_start??'' };
 
     document.getElementById('setCutoff').value = settings.cutoff;
     document.getElementById('setMinFine').value = settings.minFine;
     document.getElementById('setLateFine').value = settings.lateFine;
     document.getElementById('setDefaultWage').value = settings.defaultWage;
     for(const [id,k] of [['setSingleFine','singleFine'],['setCutDay','cutDay'],['setPayDay','payDay'],
-                         ['setAdvDay','advDay'],['setAdvMax','advMax'],['setAdvRatio','advRatio'],['setHourRule','hourRule'],['setMonthDiv','monthDiv'],['setHourlyStart','hourlyStart'],['setHourlyEnd','hourlyEnd'],['setHourlyMax','hourlyMax'],['setOtRate','otRate']]){
+                         ['setAdvDay','advDay'],['setAdvMax','advMax'],['setAdvRatio','advRatio'],['setHourRule','hourRule'],['setMonthDiv','monthDiv'],['setHourlyStart','hourlyStart'],['setHourlyEnd','hourlyEnd'],['setHourlyMax','hourlyMax']]){
       const el = document.getElementById(id); if(el) el.value = settings[k];
     }
 
@@ -2865,7 +2864,10 @@ async function delAdj(id){
 }
 
 /* ---- OT รายวัน: ปุ่ม OT ในตารางเข้างาน ใส่เป็น "จำนวนชั่วโมง" ระบบคูณอัตรา OT ให้เอง ----
-   เก็บเป็นรายการเพิ่มเงิน "OT <วัน> (X ชม.)" · อัตราตั้งที่หน้าตั้งค่า (payroll_settings.ot_rate) */
+   อัตรา OT ต่อชั่วโมง คิดอัตโนมัติจากค่าแรงรายคน = ค่าแรงวัน ÷ 8
+   (รายเดือน: เงินเดือน ÷ 30 ÷ 8 เช่น 12,000 -> 400/วัน -> 50 บาท/ชม. · รายชั่วโมงใช้เรตตัวเอง)
+   เก็บเป็นรายการเพิ่มเงิน "OT <วัน> (X ชม.)" */
+const otRateOf = e => e.mode === 'hourly' ? (+e.rate || 0) : (dailyRate(e) || 0) / 8;
 const otReason = (day, hrs) => 'OT ' + dayLabel(day) + ' (' + hrs + ' ชม.)';
 const otOf = (empId, period, day) =>
   adjustments.find(a=>a.empId===empId && a.period===period && a.kind==='add' &&
@@ -2873,13 +2875,14 @@ const otOf = (empId, period, day) =>
 const otHours = a => { const m = String((a&&a.reason)||'').match(/\(([\d.]+) ชม\.\)/); return m? +m[1] : null; };
 async function editOT(empId, day){
   const e = employees.find(x=>x.id===empId);
-  const rate = Number(settings.otRate)||0;
-  if(!rate) return toast('❌ ไปตั้ง "ค่า OT (บาท/ชั่วโมง)" ในหน้าตั้งค่าก่อน — ตอนนี้ยังเป็น 0');
+  const rate = otRateOf(e);
+  if(!rate) return toast('❌ พนักงานคนนี้ยังไม่มีอัตราค่าแรง คิด OT ไม่ได้');
   const period = periodOf(day);
   const cur = otOf(empId, period, day);
   const curH = cur ? (otHours(cur) ?? Math.round(cur.amount / rate * 100) / 100) : '';
   const v = prompt('⏱ OT — '+e.nick+' · '+dayLabel(day)+' ('+WD_TH[wdOf(day)]+')'+
-    '\nอัตรา OT '+THB(rate)+' บาท/ชั่วโมง'+
+    '\nอัตรา OT '+THB2(rate)+' บาท/ชม. '+
+    (e.mode==='hourly' ? '(ตามเรตรายชั่วโมง)' : '(ค่าแรงวัน '+THB(Math.round(dailyRate(e)))+' ÷ 8)')+
     '\n\nใส่จำนวนชั่วโมง (เช่น 2 หรือ 1.5) · 0 หรือเว้นว่าง = ลบ OT วันนี้ออก', curH);
   if(v === null) return;
   const hours = Math.max(0, Math.round((+String(v).trim().replace(',', '.') || 0) * 100) / 100);
@@ -4109,8 +4112,7 @@ async function saveSetting(field, val){
             single_fine:'singleFine', cut_day:'cutDay', pay_day:'payDay', adv_day:'advDay',
             adv_max:'advMax', adv_ratio:'advRatio', hour_rule:'hourRule', month_divisor:'monthDiv',
             hourly_start:'hourlyStart', hourly_end:'hourlyEnd', hourly_max:'hourlyMax',
-            must_work_days:'mustWorkDays', must_work_fine:'mustWorkFine', dep_start:'depStart',
-            ot_rate:'otRate'}[field]] = val;
+            must_work_days:'mustWorkDays', must_work_fine:'mustWorkFine', dep_start:'depStart'}[field]] = val;
   const { error } = await db.from('payroll_settings').update({ [field]: val }).eq('id', 1);
   if(error) return dbErr(error,'บันทึกตั้งค่า');
   recomputeAll(); renderAll(); updPeriodHint(); toast('บันทึกแล้ว');
