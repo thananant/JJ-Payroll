@@ -826,28 +826,36 @@ async function autoCreateEmployees(env, rows, nameHint) {
   const missing = codes.filter((c) => !known.has(c));
   if (!missing.length) return;
 
-  let wage = 400;
-  const s = await safeJson(await sb(env, 'payroll_settings?select=default_wage&id=eq.1', { method: 'GET' }));
-  if (s[0]?.default_wage) wage = s[0].default_wage;
-
-  await sb(env, 'employees?on_conflict=code', {
+  // เจ้าของสั่ง (2026-08-12): พนักงานเข้าใหม่ default รายเดือน 12,000
+  // + จดวันเริ่มงาน = วันสแกนแรก (งวดแรกระบบจะคิดเป็นรายวันให้อัตโนมัติ)
+  const firstDay = {};
+  for (const r of rows) {
+    if (!firstDay[r.emp_code] || r.punch_date < firstDay[r.emp_code]) firstDay[r.emp_code] = r.punch_date;
+  }
+  const mkRow = (c, withStart) => {
+    // แยกชื่อจากเครื่อง: คำแรก = ชื่อเล่น, ที่เหลือ = ชื่อ-นามสกุล
+    let nick = c, full = '';
+    if (missing.length === 1 && nameHint) {
+      const nm = String(nameHint).trim();
+      const sp = nm.indexOf(' ');
+      nick = sp > 0 ? nm.slice(0, sp) : nm;
+      full = sp > 0 ? nm.slice(sp + 1).trim() : '';
+    }
+    const row = {
+      code: c, nick, full_name: full, dept: '', wage_type: 'monthly', rate: 12000,
+      work_mode: 'shift', active: true,
+    };
+    if (withStart && firstDay[c]) row.start_date = firstDay[c];
+    return row;
+  };
+  const post = (body) => sb(env, 'employees?on_conflict=code', {
     method: 'POST',
     headers: { Prefer: 'resolution=ignore-duplicates,return=minimal' },
-    body: JSON.stringify(missing.map((c) => {
-      // แยกชื่อจากเครื่อง: คำแรก = ชื่อเล่น, ที่เหลือ = ชื่อ-นามสกุล
-      let nick = c, full = '';
-      if (missing.length === 1 && nameHint) {
-        const nm = String(nameHint).trim();
-        const sp = nm.indexOf(' ');
-        nick = sp > 0 ? nm.slice(0, sp) : nm;
-        full = sp > 0 ? nm.slice(sp + 1).trim() : '';
-      }
-      return {
-        code: c, nick, full_name: full, dept: '', wage_type: 'daily', rate: wage,
-        work_mode: 'shift', active: true,
-      };
-    })),
+    body: JSON.stringify(body),
   });
+  const r1 = await post(missing.map((c) => mkRow(c, true)));
+  // ยังไม่ได้รัน jj_work_dates.sql (ไม่มีคอลัมน์ start_date) -> ลองใหม่แบบไม่ใส่วันเริ่มงาน
+  if (!r1.ok) await post(missing.map((c) => mkRow(c, false)));
 }
 
 async function touchDevice(env, sn) {
