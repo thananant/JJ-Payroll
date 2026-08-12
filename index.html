@@ -3624,10 +3624,20 @@ function renderToday(){
             <td>${notes.join(' ')}</td>
           </tr>`;
         };
-        // เรียงกะตามลำดับที่ตั้งไว้ กะอื่น (นับชม./รายชั่วโมง) ต่อท้าย
-        const shOrder = shiftDefs.map(s=>s.name);
+        // จัดกลุ่มกะจาก "เวลาสแกนเข้า" (เฉพาะหน้านี้ ไม่กระทบการคิดเงิน/คิดสาย):
+        // เข้าก่อน 14:00 = กะเช้า (รวมกะเช้าล้างจาน 11:00) · 14:00-16:59 = กะกลาง
+        // 17:00 ขึ้นไป หรือสแกนหลังเที่ยงคืน = กะเย็น · Parttime/นับชั่วโมง แยกกลุ่มท้ายสุด
+        const bucketOf = ({e,r}) => {
+          if(e.mode==='hourly') return 'Parttime';
+          if(e.mode==='hours') return 'นับชั่วโมง';
+          let m = r.in.getHours()*60 + r.in.getMinutes();
+          if(localYMD(r.in) !== day) m += 1440;      // เข้าหลังเที่ยงคืน = กะเย็นข้ามคืน
+          return m >= 17*60 ? 'กะเย็น' : m >= 14*60 ? 'กะกลาง' : 'กะเช้า';
+        };
+        const shOrder = ['กะเช้า','กะกลาง','กะเย็น','Parttime','นับชั่วโมง'];
+        const shIco = { 'กะเช้า':'🌅','กะกลาง':'🌤','กะเย็น':'🌙','Parttime':'🧢','นับชั่วโมง':'⏱' };
         const byShiftG = {};
-        came.forEach(x=>{ (byShiftG[x.r.shiftName]=byShiftG[x.r.shiftName]||[]).push(x); });
+        came.forEach(x=>{ const k=bucketOf(x); (byShiftG[k]=byShiftG[k]||[]).push(x); });
         const keys = Object.keys(byShiftG).sort((a,c)=>{
           const ia = shOrder.indexOf(a), ic = shOrder.indexOf(c);
           return (ia<0?99:ia)-(ic<0?99:ic) || a.localeCompare(c,'th');
@@ -3635,7 +3645,7 @@ function renderToday(){
         let rows = '';
         for(const sn of keys){
           const g = byShiftG[sn];
-          rows += `<tr class="grp-shift"><td colspan="4">🕐 ${sn} — ${g.length} คน</td></tr>`;
+          rows += `<tr class="grp-shift"><td colspan="4">${shIco[sn]||'🕐'} ${sn} — ${g.length} คน</td></tr>`;
           const byDept = {};
           g.forEach(x=>{ const d=x.e.dept||'ไม่ระบุแผนก'; (byDept[d]=byDept[d]||[]).push(x); });
           for(const d of Object.keys(byDept).sort((a,c)=>a.localeCompare(c,'th'))){
