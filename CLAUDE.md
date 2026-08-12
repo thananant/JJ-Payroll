@@ -34,7 +34,7 @@
 - **รายการหักสำเร็จรูป** (ADJ_PRESETS): แต่งตัวผิดระเบียบ 50 · ไม่ใส่เสื้อพนักงาน 200 · เล่นโทรศัพท์ 100 · ไม่เก็บโทรศัพท์ 100 · อื่นๆ บังคับใส่เหตุผล
 - **พนักงานใหม่**: default รายเดือน 12,000 ทุกช่องทาง (ฟอร์ม/import/worker — เจ้าของสั่ง 2026-08-12) · worker จดวันเริ่มงาน = วันสแกนแรก (fallback ไม่มีคอลัมน์ก็สร้างได้)
 - **วันเริ่มงาน/วันสิ้นสุด** (`employees.start_date/end_date`): รายเดือนที่เริ่มงานหลังเปิดงวด หรือออกก่อนตัดรอบ → งวดนั้นคิดเป็นรายวัน (วันทำงาน × เงินเดือน÷30) · ไม่ได้กรอกวันเริ่มงานใช้วันสแกนแรกแทน (effStart ใน calcPay) · กฎห้ามหยุด+วันหยุดพิเศษนับเฉพาะช่วงที่ยังทำงานอยู่ · flag `workDateReady`
-- **OT รายวัน**: ปุ่ม ＋OT ในตารางเข้างานหน้าข้อมูลพนักงาน (editOT) — เก็บเป็น adjustments kind add, reason `OT <วัน>` · ใส่ 0/เว้นว่าง = ลบ · แสดง/ลบได้ในตารางเงินเดือนเหมือน adjustment ปกติ
+- **OT รายวัน**: ปุ่ม ＋OT ในตารางเข้างานหน้าข้อมูลพนักงาน (editOT) — **ใส่เป็นชั่วโมง** ระบบคูณ `payroll_settings.ot_rate` (บาท/ชม. ตั้งในหน้าตั้งค่า ต้อง > 0) · เก็บเป็น adjustments kind add, reason `OT <วัน> (X ชม.)` · ใส่ 0/เว้นว่าง = ลบ · แสดง/ลบได้ในตารางเงินเดือนเหมือน adjustment ปกติ
 - **แก้รายการหักอัตโนมัติ** (ตาราง `fine_entries`, flag `fineReady`): หักผิดแก้ยอดรายงวดได้ 4 ชนิด — kind: miss(สาย/ออกก่อนตามนาที) late(ปรับมาสาย) single(ลืมตอก) must(หยุดวันห้ามหยุด) · ปุ่ม ✎ ในหน้าข้อมูลพนักงาน (editFine) · เว้นว่าง = กลับอัตโนมัติ, 0 = ไม่หัก
 - **พิมพ์สลิปเลือกคนได้**: ปุ่ม 🖨️ เปิด modal `slipPickBg` ติ๊กเลือกคน (openSlipPicker → printAllSlips(ids)) · ใน modal กรอง สาขา/ตำแหน่ง/สถานะ ได้ (pickBranch/pickPos/pickActive) · ติ๊กจำใน Set `slipPickSel` ข้ามการสลับตัวกรอง · ปุ่มเลือก/ล้างทั้งหมดมีผลเฉพาะรายชื่อที่กรองแสดงอยู่
 - **หน้าสรุปเงินเดือน กรองสถานะได้**: dropdown `payActive` (ทุกสถานะ/ยังทำงานอยู่/พ้นสภาพ) · คนพ้นสภาพมี chip เทากำกับในตาราง
@@ -49,7 +49,7 @@
 - `adjustments` — เพิ่ม/หักเงินรายงวด: employee_id, kind(add/deduct), reason, amount, period
 - `advances` — เบิกกลางเดือน: employee_id, amount, adv_date, period
 - `holidays` — วันหยุดพิเศษ: day, name, multiplier
-- `payroll_settings` — แถวเดียว: cutoff, cut_day, pay_day, late_rate, single_fine, grace, default_wage, month_div, no_off_bonus, hourly_*, must_work_days('5,6,0'), must_work_fine, **dep_start**
+- `payroll_settings` — แถวเดียว: cutoff, cut_day, pay_day, late_rate, single_fine, grace, default_wage, month_div, no_off_bonus, hourly_*, must_work_days('5,6,0'), must_work_fine, **dep_start, ot_rate**
 - `deposit_entries` — override เงินประกันรายงวด: unique(employee_id, period)
 - `mou_loans` — unique ต่อคน: amount, monthly, final_max, start_period, opening, doc_passport, doc_pink, doc_complete, note, returned_at
 - `mou_entries` — override หัก MOU รายงวด: unique(employee_id, period)
