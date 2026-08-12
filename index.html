@@ -1610,8 +1610,11 @@ function calcPay(emp, period){
   const lateAuto0   = (settings.lateFine||0) * lateCount;
   const singleFine0 = (settings.singleFine||0) * singleCount;
   // เจ้าของสั่ง (2026-08-12): หยุดวันห้ามหยุด หัก 2 เท่าของค่าแรงวัน (เช่น ฐาน 400 -> หัก 800)
-  const mustPerDay  = Math.round(dRate * 2);
-  const mustFine0   = mustViol.length * mustPerDay;
+  // เริ่มใช้ตั้งแต่ 26 ก.ค. 2569 (= วันเปิดงวด ส.ค. 2569) — วันก่อนหน้านั้นคิด 1 เท่าตามเดิม
+  const MUST_X2_START = '2026-07-26';
+  const mustX = rg.from >= MUST_X2_START ? 2 : 1;
+  const mustPerDay  = Math.round(dRate * mustX);
+  const mustFine0   = mustViol.reduce((s,v)=> s + Math.round(dRate * (v.day >= MUST_X2_START ? 2 : 1)), 0);
   const missFine   = fineOvs.miss   ? Math.max(0, +fineOvs.miss.amount)   : missFine0;
   const lateAuto   = fineOvs.late   ? Math.max(0, +fineOvs.late.amount)   : lateAuto0;
   const singleFine = fineOvs.single ? Math.max(0, +fineOvs.single.amount) : singleFine0;
@@ -1630,7 +1633,7 @@ function calcPay(emp, period){
            dep, mou, offDue, offUsed, noOffDays, noOffBonus, wkOffWorked,
            crossDays, byBranch, dip,
            prorate, partialStart, partialEnd, effStart,
-           fineOvs, missFine0, lateAuto0, singleFine0, mustFine0, mustPerDay,
+           fineOvs, missFine0, lateAuto0, singleFine0, mustFine0, mustPerDay, mustX,
            net: base + addSum - deduSum };
 }
 
@@ -2773,7 +2776,7 @@ function renderDetail(){
           <span class="small">รวมทั้งงวด: ${Object.entries(p.byBranch).map(([b,n])=>((BR[b]||{}).t||b)+' '+n+' วัน').join(' · ')}</span>
         </div>`:''}
         ${p.mustViol.length? `<div class="warn-note" style="margin-top:12px;margin-bottom:0;background:var(--red-soft);border-color:#f3c4b5;color:#a03014">
-          🚫 <b>หยุดวันห้ามหยุด ${p.mustViol.length} วัน</b> — หักวันละ ${THB(p.mustPerDay)} (2 เท่าของค่าแรงวัน${e.type==='monthly'?' · เงินเดือน ÷ '+(settings.monthDiv||30)+' × 2':''}) รวม ${THB(p.mustFine)} บาท<br>
+          🚫 <b>หยุดวันห้ามหยุด ${p.mustViol.length} วัน</b> — หักวันละ ${THB(p.mustPerDay)} (${p.mustX===2?'2 เท่าของค่าแรงวัน':'ตามฐานค่าแรงวัน'}${e.type==='monthly'?' · เงินเดือน ÷ '+(settings.monthDiv||30)+(p.mustX===2?' × 2':''):''}) รวม ${THB(p.mustFine)} บาท<br>
           ${p.mustViol.map(v=>dayLabel(v.day)+' ('+v.why+')').join(' · ')}
         </div>`:''}
         ${p.mou && p.mou.loan && !p.mou.loan.returnedAt? `<div class="warn-note" style="margin-top:12px;margin-bottom:0;${p.mou.done?'background:#e9f7ec;border-color:#c3e6cb;color:#1e6b2e':''}">
