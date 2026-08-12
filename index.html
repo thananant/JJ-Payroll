@@ -2698,7 +2698,7 @@ function renderDetail(){
         <div class="section-title">การเข้างาน — ${period?periodLabel(period):''}<span style="flex:1"></span>
           <button class="btn btn-light btn-sm" style="font-weight:400" onclick="openPunchEdit(${e.id}, null)">🕐 เพิ่ม/แก้เวลา (สแกนไม่ติด)</button></div>
         <div class="tbl-wrap" style="max-height:380px;overflow-y:auto">
-        <table><thead><tr><th>วันที่</th><th>กะ</th><th>เข้า</th><th>ออก</th><th class="num">ชม.</th><th class="num">${isHr?'นับได้':'ขาด'}</th><th></th></tr></thead><tbody>
+        <table><thead><tr><th>วันที่</th><th>กะ</th><th>เข้า</th><th>ออก</th><th class="num">ชม.</th><th class="num">${isHr?'นับได้':'ขาด'}</th><th class="num">OT</th><th></th></tr></thead><tbody>
         ${ss.length? ss.map(s=>{
           const wd = WD_TH[new Date(s.day+'T12:00:00').getDay()];
           const hd = p.holiDays.find(x=>x.day===s.day);
@@ -2714,9 +2714,12 @@ function renderDetail(){
             <td class="num">${s.hours?s.hours.toFixed(1):'–'}</td>
             <td class="num">${isHr ? (s.fullHours? '<b style="color:var(--green)">'+s.fullHours+' ชม.</b>':'–')
                                    : (s.missMin?'<span style="color:var(--red)">'+s.missMin+' น.</span>':'–')}</td>
+            <td class="num" style="white-space:nowrap">${(()=>{const o=otOf(e.id,period,s.day);
+              return (o?'<b style="color:var(--green)">+'+THB(o.amount)+'</b> ':'')+
+                `<button class="btn btn-light btn-sm" style="padding:2px 6px;font-size:10.5px" title="เพิ่ม/แก้/ลบ OT วันนี้" onclick="editOT(${e.id},'${s.day}')">${o?'✎':'＋'}OT</button>`;})()}</td>
             <td><button class="btn btn-light btn-sm" style="padding:2px 7px" title="แก้เวลาเข้า-ออกวันนี้" onclick="openPunchEdit(${e.id},'${s.day}')">✎</button></td>
           </tr>`;
-        }).join('') : '<tr><td colspan="7"><div class="empty">ไม่มีข้อมูลในงวดนี้</div></td></tr>'}
+        }).join('') : '<tr><td colspan="8"><div class="empty">ไม่มีข้อมูลในงวดนี้</div></td></tr>'}
         </tbody></table></div>
       </div>
       <div>
@@ -2854,6 +2857,46 @@ async function delAdj(id){
   if(error) return dbErr(error,'ลบรายการ');
   adjustments = adjustments.filter(a=>a.id!==id);
   renderDetail(); renderPayroll();
+}
+
+/* ---- OT รายวัน: ปุ่ม OT ในตารางเข้างาน กดใส่ยอดได้เลย (เก็บเป็นรายการเพิ่มเงิน "OT <วัน>") ---- */
+const otReason = day => 'OT ' + dayLabel(day);
+const otOf = (empId, period, day) =>
+  adjustments.find(a=>a.empId===empId && a.period===period && a.kind==='add' && a.reason===otReason(day)) || null;
+async function editOT(empId, day){
+  const e = employees.find(x=>x.id===empId);
+  const period = periodOf(day);
+  const cur = otOf(empId, period, day);
+  const v = prompt('⏱ OT — '+e.nick+' · '+dayLabel(day)+' ('+WD_TH[wdOf(day)]+')'+
+    '\n\nใส่จำนวนเงิน OT (บาท) · 0 หรือเว้นว่าง = ลบ OT วันนี้ออก',
+    cur ? cur.amount : '');
+  if(v === null) return;
+  const amount = Math.max(0, Math.round(+String(v).trim() || 0));
+  busy(true,'กำลังบันทึก…');
+  try{
+    if(!amount){
+      if(cur){
+        const { error } = await db.from('adjustments').delete().eq('id', cur.id);
+        if(error) throw error;
+        adjustments = adjustments.filter(a=>a.id!==cur.id);
+        toast('ลบ OT '+dayLabel(day)+' แล้ว');
+      }
+    }else if(cur){
+      const { error } = await db.from('adjustments').update({ amount }).eq('id', cur.id);
+      if(error) throw error;
+      cur.amount = amount;
+      toast('OT '+dayLabel(day)+' = '+THB(amount)+' บาท');
+    }else{
+      const { data, error } = await db.from('adjustments')
+        .insert({ employee_id:empId, kind:'add', reason:otReason(day), amount, period })
+        .select().single();
+      if(error) throw error;
+      adjustments.push(fromDbAdj(data));
+      toast('＋ OT '+dayLabel(day)+' '+THB(amount)+' บาท');
+    }
+    renderDetail(); renderPayroll();
+  }catch(err){ dbErr(err,'บันทึก OT'); }
+  busy(false);
 }
 
 /* ================= HOLIDAYS PAGE ================= */
