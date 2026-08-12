@@ -321,7 +321,7 @@ tr.grp-dept td{background:#faf7f1;font-size:11.5px;font-weight:600;color:var(--i
       <option value="">ทุกสถานะ</option><option value="1">ทำงานอยู่</option><option value="0">พ้นสภาพ</option>
     </select>
     <span style="flex:1"></span>
-    <button class="btn btn-light" title="ไฟล์ Excel สำหรับอัปโหลดแอดบัญชีพนักงานใน K BIZ (เฉพาะบัญชีกสิกร)" onclick="exportKbizAccounts()">🏦 K BIZ แอดบัญชี</button>
+    <button class="btn btn-light" title="ไฟล์ Excel สำหรับอัปโหลดแอดบัญชีพนักงานใน K BIZ (เฉพาะบัญชีกสิกร)" onclick="openKbizBranch('acc')">🏦 K BIZ แอดบัญชี</button>
     <button class="btn btn-ember" onclick="openEmpForm()">＋ เพิ่มพนักงาน</button>
   </div>
   <div class="tbl-wrap"><table id="empTable"></table></div>
@@ -363,7 +363,7 @@ tr.grp-dept td{background:#faf7f1;font-size:11.5px;font-weight:600;color:var(--i
     </select>
     <input type="search" id="advSearch" placeholder="ค้นหาชื่อ…" oninput="renderAdv()" style="max-width:200px">
     <span style="flex:1"></span>
-    <button class="btn btn-light" title="ไฟล์ Excel สำหรับอัปโหลดโอนเงินใน K BIZ (รวมยอดเบิกทั้งงวดต่อคน)" onclick="exportKbizAdv()">🏦 ไฟล์โอน K BIZ</button>
+    <button class="btn btn-light" title="ไฟล์ Excel สำหรับอัปโหลดโอนเงินใน K BIZ (รวมยอดเบิกทั้งงวดต่อคน)" onclick="openKbizBranch('adv')">🏦 ไฟล์โอน K BIZ</button>
     <button class="btn btn-light" onclick="openAdvSheet()">🖨️ แบบฟอร์มเบิก (พิมพ์)</button>
   </div>
   <div class="muted" id="advInfo" style="margin-bottom:10px"></div>
@@ -824,6 +824,16 @@ tr.grp-dept td{background:#faf7f1;font-size:11.5px;font-weight:600;color:var(--i
       <button class="btn btn-light" onclick="closeModal('holiBg')">ยกเลิก</button>
       <button class="btn btn-ember" onclick="saveHoli()">บันทึก</button>
     </div>
+  </div>
+</div>
+
+<!-- ============ เลือกสาขาก่อนสร้างไฟล์ K BIZ ============ -->
+<div class="modal-bg" id="kbizBg" onclick="if(event.target===this)closeModal('kbizBg')">
+  <div class="modal" style="max-width:420px">
+    <button class="close" onclick="closeModal('kbizBg')">✕</button>
+    <h2 class="font-display" id="kbizTitle">เลือกสาขา</h2>
+    <p class="muted" id="kbizDesc" style="margin-bottom:14px"></p>
+    <div id="kbizBtns" style="display:flex;flex-direction:column;gap:8px"></div>
   </div>
 </div>
 
@@ -3877,11 +3887,32 @@ function kbizWrite(sheetName, row1, headers, dataRows, fname, amountCol){
   XLSX.utils.book_append_sheet(wb, ws, sheetName);
   XLSX.writeFile(wb, fname);
 }
-/* ---- ไฟล์แอดบัญชีพนักงาน (Beneficiary Upload) — พนักงานที่ยังทำงานอยู่ทุกคน ---- */
-function exportKbizAccounts(){
+/* ---- หน้าต่างเลือกสาขาก่อนสร้างไฟล์ K BIZ (ใช้ร่วมทั้งแอดบัญชีและไฟล์โอน) ---- */
+let kbizMode = '';
+function openKbizBranch(mode){
+  kbizMode = mode;
+  document.getElementById('kbizTitle').textContent =
+    mode==='acc' ? '🏦 K BIZ แอดบัญชี — เลือกสาขา' : '🏦 ไฟล์โอน K BIZ — เลือกสาขา';
+  document.getElementById('kbizDesc').textContent =
+    mode==='acc' ? 'ไฟล์ลงทะเบียนบัญชีพนักงานที่ยังทำงานอยู่ (เฉพาะบัญชีกสิกร)'
+                 : 'รวมยอดเบิกทั้งงวดต่อคน ของงวดที่เลือกในหน้าเบิกกลางเดือน';
+  document.getElementById('kbizBtns').innerHTML =
+    ['', ...Object.keys(BR)].map(b=>
+      `<button class="btn ${b?'btn-light':'btn-ember'}" style="width:100%;justify-content:center;font-size:16px"
+        onclick="kbizGo('${b}')">${b? '🏢 '+BR[b].t : '🏢 ทุกสาขา'}</button>`).join('');
+  document.getElementById('kbizBg').classList.add('show');
+}
+function kbizGo(branch){
+  closeModal('kbizBg');
+  if(kbizMode==='acc') exportKbizAccounts(branch); else exportKbizAdv(branch);
+}
+const kbizBrLabel = b => b ? ((BR[b]||{}).t||b) : 'ทุกสาขา';
+/* ---- ไฟล์แอดบัญชีพนักงาน (Beneficiary Upload) — พนักงานที่ยังทำงานอยู่ ตามสาขาที่เลือก ---- */
+function exportKbizAccounts(branch){
   const rows = [], skipped = [], seen = new Set();
-  const list = employees.filter(e=>e.active)
+  const list = employees.filter(e=>e.active && (!branch || e.branch===branch))
     .sort((a,b)=>(a.branch||'').localeCompare(b.branch||'') || a.nick.localeCompare(b.nick,'th'));
+  if(!list.length) return toast('❌ ไม่มีพนักงานในสาขา'+kbizBrLabel(branch));
   for(const e of list){
     const r = kbizRow(e);
     if(r.skip){ skipped.push(e.nick+(e.full?' ('+e.full+')':'')+' — '+r.skip); continue; }
@@ -3889,28 +3920,25 @@ function exportKbizAccounts(){
     seen.add(r.acc);
     rows.push(['004', r.acc, r.name]);
   }
-  if(!rows.length) return toast('❌ ไม่มีพนักงานที่มีบัญชีกสิกรพร้อมใช้');
+  if(!rows.length) return toast('❌ ไม่มีพนักงานที่มีบัญชีกสิกรพร้อมใช้ในสาขา'+kbizBrLabel(branch));
   kbizWrite('Beneficiary Upload',
     ['Total No. of Transaction / จำนวนรายการทั้งหมด ', rows.length],
     ['Bank Code / \nรหัสธนาคาร','Account number / \nเลขบัญชีรับเงิน','Account name / \nชื่อบัญชีรับเงิน'],
-    rows, 'KBIZ_AddAccount_'+localYMD(new Date())+'.xlsx');
-  const msg = '✅ สร้างไฟล์แอดบัญชีแล้ว '+rows.length+' บัญชี';
+    rows, 'KBIZ_AddAccount_'+(branch||'ALL')+'_'+localYMD(new Date())+'.xlsx');
+  const msg = '✅ สร้างไฟล์แอดบัญชี ('+kbizBrLabel(branch)+') แล้ว '+rows.length+' บัญชี';
   if(skipped.length) alert(msg+'\n\n⚠️ ไม่ได้อยู่ในไฟล์ '+skipped.length+' คน:\n• '+skipped.join('\n• '));
   else toast(msg);
 }
-/* ---- ไฟล์โอนเบิกกลางเดือน (Transaction Upload) — รวมยอดเบิกทั้งงวดต่อคน ตามตัวกรองหน้าเบิก ---- */
-function exportKbizAdv(){
+/* ---- ไฟล์โอนเบิกกลางเดือน (Transaction Upload) — รวมยอดเบิกทั้งงวดต่อคน ตามสาขาที่เลือก ---- */
+function exportKbizAdv(branch){
   const period = document.getElementById('advPeriodSel').value || allPeriods()[0] || '';
   if(!period) return toast('❌ ยังไม่มีข้อมูล');
-  const bf = document.getElementById('advBranch').value;
-  const q = (document.getElementById('advSearch').value||'').toLowerCase();
-  const list = employees.filter(e=>(!bf||e.branch===bf) &&
-      (!q || (e.nick+' '+e.full+' '+e.dept).toLowerCase().includes(q)))
+  const list = employees.filter(e=>(!branch || e.branch===branch))
     .map(e=>({e, taken: advances.filter(a=>a.empId===e.id && a.period===period)
                                .reduce((s,x)=>s+ +x.amount,0)}))
     .filter(x=>x.taken>0)
     .sort((a,b)=>(a.e.branch||'').localeCompare(b.e.branch||'') || a.e.nick.localeCompare(b.e.nick,'th'));
-  if(!list.length) return toast('❌ งวดนี้ยังไม่มีรายการเบิก');
+  if(!list.length) return toast('❌ งวดนี้ยังไม่มีรายการเบิกในสาขา'+kbizBrLabel(branch));
   const p2 = n => String(n).padStart(2,'0');
   const tm = new Date(); tm.setDate(tm.getDate()+1);   // ธนาคารบังคับวันอนาคต
   const defD = p2(tm.getDate())+'/'+p2(tm.getMonth()+1)+'/'+tm.getFullYear();
@@ -3939,10 +3967,10 @@ function exportKbizAdv(){
      'Total Amount / จำนวนเงินทั้งหมด ', total],
     ['Bank Code / \nรหัสธนาคาร','Account number / \nเลขบัญชีรับเงิน','Account name / \nชื่อบัญชีรับเงิน',
      'Amount/ \nจำนวนเงิน','Effective Date /\nวันที่เงินเข้าบัญชี\n(DD/MM/YYYY) '],
-    rows, 'KBIZ_Advance_'+period+'.xlsx', 3);
+    rows, 'KBIZ_Advance_'+(branch||'ALL')+'_'+period+'.xlsx', 3);
   const joint = [...byAcc.values()].filter(x=>x.names.length>1)
     .map(x=>x.names.join('+')+' รวม '+THB(x.amount)+' บ. (บัญชีร่วม)');
-  alert('✅ สร้างไฟล์โอนเบิกกลางเดือน '+periodLabel(period)+'\n'+
+  alert('✅ สร้างไฟล์โอนเบิกกลางเดือน '+periodLabel(period)+' ('+kbizBrLabel(branch)+')\n'+
     rows.length+' รายการ · รวม '+THB(total)+' บาท · เงินเข้า '+eff+
     (joint.length? '\n\n🔗 '+joint.join('\n'):'')+
     (skipped.length? '\n\n⚠️ ไม่อยู่ในไฟล์ '+skipped.length+' คน (ต้องจ่ายเอง):\n• '+skipped.join('\n• '):''));
