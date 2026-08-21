@@ -34,8 +34,8 @@ h1,h2,h3,.font-display{font-family:'Prompt',sans-serif}
 .layout{display:flex;min-height:100vh}
 aside{width:242px;flex-shrink:0;background:#fff;color:var(--ink);display:flex;flex-direction:column;position:sticky;top:0;height:100vh;border-right:1px solid var(--line)}
 .brand{display:flex;align-items:center;gap:12px;padding:20px 16px 16px}
-.brand .flame{width:42px;height:42px;border-radius:13px;background:var(--brand-grad);display:flex;align-items:center;justify-content:center;font-size:21px;box-shadow:0 6px 16px rgba(255,90,31,.35);flex-shrink:0;overflow:hidden}
-.brand .flame img{width:100%;height:100%;object-fit:cover}
+.brand .flame{width:42px;height:42px;border-radius:13px;background:var(--brand-grad);display:flex;align-items:center;justify-content:center;font-size:21px;box-shadow:0 6px 16px rgba(255,90,31,.35);flex-shrink:0;overflow:hidden;position:relative}
+.brand .flame img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 .brand h1{font-size:16.5px;font-weight:600;color:var(--brand-deep)}
 .brand small{display:block;font-weight:400;color:var(--ink-soft);font-size:11.5px}
 aside nav{display:flex;flex-direction:column;gap:3px;padding:6px 12px;flex:1;overflow-y:auto}
@@ -197,8 +197,8 @@ tr.grp-dept td{background:#faf7f1;font-size:11.5px;font-weight:600;color:var(--i
 #slipBg .modal{max-width:800px;padding:0;background:#fff}
 .slip{padding:16px 20px;font-size:11px}
 .slip-head{display:flex;align-items:flex-start;gap:12px;border-bottom:2.5px solid var(--charcoal);padding-bottom:9px}
-.slip-head .logo{width:36px;height:36px;border-radius:9px;background:linear-gradient(160deg,#ff922b,#e8590c 55%,#a63603);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;overflow:hidden}
-.slip-head .logo img{width:100%;height:100%;object-fit:cover;print-color-adjust:exact;-webkit-print-color-adjust:exact}
+.slip-head .logo{width:36px;height:36px;border-radius:9px;background:linear-gradient(160deg,#ff922b,#e8590c 55%,#a63603);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;overflow:hidden;position:relative}
+.slip-head .logo img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;print-color-adjust:exact;-webkit-print-color-adjust:exact}
 .slip h1{font-size:14.5px;margin:0}
 .slip .co{font-size:10px;color:var(--ink-soft)}
 .slip-emp{display:flex;gap:12px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)}
