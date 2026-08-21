@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>JJMK Payroll — ระบบเงินเดือนพนักงาน</title>
+<link rel="icon" type="image/png" href="logo.png">
+<link rel="apple-touch-icon" href="logo.png">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -195,7 +197,8 @@ tr.grp-dept td{background:#faf7f1;font-size:11.5px;font-weight:600;color:var(--i
 #slipBg .modal{max-width:800px;padding:0;background:#fff}
 .slip{padding:16px 20px;font-size:11px}
 .slip-head{display:flex;align-items:flex-start;gap:12px;border-bottom:2.5px solid var(--charcoal);padding-bottom:9px}
-.slip-head .logo{width:36px;height:36px;border-radius:9px;background:linear-gradient(160deg,#ff922b,#e8590c 55%,#a63603);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+.slip-head .logo{width:36px;height:36px;border-radius:9px;background:linear-gradient(160deg,#ff922b,#e8590c 55%,#a63603);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;overflow:hidden}
+.slip-head .logo img{width:100%;height:100%;object-fit:cover;print-color-adjust:exact;-webkit-print-color-adjust:exact}
 .slip h1{font-size:14.5px;margin:0}
 .slip .co{font-size:10px;color:var(--ink-soft)}
 .slip-emp{display:flex;gap:12px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)}
@@ -3040,7 +3043,7 @@ function buildSlip(e, period, compact){
   return `
   <div class="slip${compact?' slip-sm':''}">
     <div class="slip-head">
-      <div class="logo">🔥</div>
+      <div class="logo"><img src="logo.png" alt="" onerror="this.remove()">🔥</div>
       <div style="flex:1">
         <h1>ใบสรุปเงินเดือน / Payslip</h1>
         <div class="co">จริงใจหมูกระทะ · บริษัท พากันรวย ฟู้ดส์ คอร์ปอเรชั่น จำกัด</div>
@@ -3512,7 +3515,7 @@ function openAdvSheet(){
     if(!list.length) return '';
     return `<div class="slip" style="page-break-after:always">
       <div class="slip-head">
-        <div class="logo">🔥</div>
+        <div class="logo"><img src="logo.png" alt="" onerror="this.remove()">🔥</div>
         <div style="flex:1">
           <h1>แบบฟอร์มเบิกเงินกลางเดือน</h1>
           <div class="co">จริงใจหมูกระทะ · สาขา${(BR[b]||{}).t||b}</div>
