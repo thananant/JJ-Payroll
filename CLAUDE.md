@@ -28,7 +28,8 @@
 - **กฎห้ามหยุด ศ-ส-อา + วันหยุดพิเศษ**: หยุดโดนหักวันละ **2 เท่าของค่าแรงวัน** (mustPerDay — เจ้าของสั่ง 2026-08-12 เช่น ฐาน 400 → หัก 800 · รายเดือนคิดฐาน ÷30 × 2) · **×2 เริ่ม 2026-07-26 = งวด ส.ค. 2569** (`MUST_X2_START`) ก่อนหน้านั้น ×1 ตามเดิม
   - ยกเว้นอัตโนมัติ (autoMustExempt): สาขา OFFICE, ตำแหน่ง/แผนกมีคำว่า manager|ผู้จัดการ, แผนกมีคำว่า ออฟฟิศ, คนมีวันหยุดประจำสัปดาห์, รายชั่วโมง
 - **เบี้ยไม่หยุด**: ไม่ใช้สิทธิ์วันหยุด ได้วันละ 400 · **เบี้ยวันหยุดพิเศษ**: มาทำงานวันหยุดพิเศษได้ตัวคูณ (ต้องไม่สาย/ไม่ออกก่อน/ไม่ลืมตอก)
-- **เบิกกลางเดือน**: มีเพดานต่อคน เกินได้แต่ toast เตือน + confirm
+- **เบิกกลางเดือน**: มีเพดานต่อคน เกินได้แต่ toast เตือน + confirm · **Manager (แผนก/ตำแหน่ง manager|ผู้จัดการ) เพดาน 5,000** คนอื่นตาม adv_max (3,000) · **เงินยืมโหมด mid กันยอดผ่อนงวดนี้ออกจากสิทธิ์เบิก** (advQuota: loanHold — เช่น เพดาน 5,000 ผ่อน 2,000 → เบิกได้ 3,000)
+- **ประกันสังคม (สปส.)**: หน้า #sso · ติ๊กรายคน `employees.sso_on` + เลขบัตร `sso_id` (13 หลัก) flag `ssoReady` · เงินสมทบ = ฐานค่าจ้าง clamp [sso_min 1,650, sso_max 15,000] × sso_rate 5% ปัดเศษ ≥50 สต. ขึ้น (ssoCalc — ฐานใช้ p.base ของงวด, base 0 = ไม่หัก) · นายจ้างสมทบเท่ากัน · override รายงวด `sso_entries` (0 = งดหัก, editSso) · ปุ่ม 📤 exportSso = Excel แนว สปส. 1-10 (หัวไฟล์ใช้ sso_account จากตั้งค่า) · ตั้งค่า sso_rate/sso_min/sso_max/sso_account ในหน้าตั้งค่า
 - **เงินประกัน**: เป้า 5,000 หักเดือนละ 500 · **เริ่มหักจริงงวด 2026-08 (ส.ค. 2569)** ผ่าน `payroll_settings.dep_start` — ห้ามคิดย้อนหลัง · override รายงวดในตาราง `deposit_entries` · ครบแล้วหยุดเอง
 - **พนักงานยืมเงิน (เงินยืมทั่วไป)**: หน้า #loan ตาราง `loans` (unique ต่อคน) + `loan_entries` (override รายงวด) flag `loanReady` · เลือกผ่อน/งวด + จุดหัก `deduct_on`: **mid** = หักจากยอดโอนตอนเบิกกลางเดือน (loanCalc คืน dedMid=min(ผ่อน,ยอดเบิก) — ไฟล์โอน K BIZ โอนสุทธิ = เบิก−ผ่อน · ส่วนที่เบิกไม่พอ dedPay ไปหักในสลิปให้เอง) / **payroll** = หักในสลิปทั้งงวด (dedPay) · calcPay ใช้ p.eloan · ✎ แก้รายงวดเหมือน MOU (editLoan)
 - **เงินยืม MOU**: ปกติ 15,000 หักเดือนละ 2,000 พอเหลือ ≤ 3,000 หักหมดงวดสุดท้าย (= 2,000×6 + 3,000) · บริษัทเก็บ Passport+บัตรชมพู คืนเมื่อหักครบเท่านั้น · มีสมุดยืม-คืนเอกสาร (doc_borrows)
@@ -42,6 +43,7 @@
 - **K BIZ (กสิกร)**: ปุ่ม 🏦 หน้าพนักงาน = ไฟล์แอดบัญชี (Beneficiary Upload) · ปุ่ม 🏦 หน้าเบิกกลางเดือน = ไฟล์โอนยอดเบิกรวมต่อคน (Transaction Upload) · กดแล้วเด้ง modal `kbizBg` เลือกสาขาก่อน (openKbizBranch → kbizGo) · ไฟล์แอดบัญชีใส่เฉพาะคนที่ยังไม่เคยเพิ่ม (`employees.kbiz_added`, flag `kbizReady`) — สร้างไฟล์เสร็จถามบันทึก "เพิ่มแล้ว" อัตโนมัติ + ติ๊กเองได้ในฟอร์มพนักงาน (fKbiz) · ฟอร์แมตตามเทมเพลทธนาคาร: กสิกรเท่านั้น (รหัส 004), เลขบัญชี 10 หลัก, ชื่อ ≤ 50 ตัวอักษร, วันที่เงินเข้าต้องเป็นวันอนาคต DD/MM/YYYY ค.ศ. · บัญชีร่วมรวมเป็นแถวเดียว · คนที่ใช้ไม่ได้ (เงินสด/ต่างธนาคาร/เลขไม่ครบ) แจ้งรายชื่อใน alert (exportKbizAccounts / exportKbizAdv)
 - **หน้าวันนี้ จัดกลุ่มกะตามเวลาสแกนเข้า** (bucketOf ใน renderToday — เฉพาะการแสดงผล ไม่กระทบคิดเงิน/สาย): เข้าก่อน 14:00 = กะเช้า (รวมล้างจาน 11:00) · 14:00-16:59 = กะกลาง · 17:00 ขึ้นไป/หลังเที่ยงคืน = กะเย็น · Parttime/นับชั่วโมง แยกท้าย
 - **ประวัติเงินเดือนย้อนหลัง**: แสดงตั้งแต่ `PAY_HIST_START = '2026-07'` เท่านั้น
+- **แคชเวลาตอกบัตร (IndexedDB `jjmk-cache`/kv/'punches', `PCACHE_VER`)**: เปิดครั้งแรกโหลดเต็ม (fetchPunchRange นับ count แล้วยิงขนานทีละ 10 หน้า order by id) · ครั้งต่อไปใช้แคช + โหลดสดเฉพาะงวดปัจจุบัน (กันแก้/ลบเวลาที่เครื่องอื่น) · recomputeAll เรียก savePunchCacheSoon (debounce 3s) · ปุ่ม 🔄 = refreshAll ล้างแคชโหลดใหม่หมด · **ห้ามลืม: แก้เวลาย้อนหลังเกินงวดปัจจุบันจากเครื่องอื่น ต้องกด 🔄 ถึงจะเห็น**
 
 ## Supabase — ตารางทั้งหมด
 
@@ -57,9 +59,10 @@
 - `doc_borrows` — สมุดยืมเอกสาร: doc, borrow_date, return_date, note
 - `fine_entries` — แก้ยอดรายการหักอัตโนมัติรายงวด: employee_id, period, kind(miss/late/single/must), amount, unique(employee_id, period, kind)
 - `loans` — พนักงานยืมเงิน unique ต่อคน: amount, monthly, deduct_on(mid/payroll), start_period, opening, loan_date, note · `loan_entries` — override ผ่อนรายงวด unique(employee_id, period)
+- `sso_entries` — ประกันสังคม override รายงวด: unique(employee_id, period) · employees เพิ่ม sso_on, sso_id · payroll_settings เพิ่ม sso_rate/sso_min/sso_max/sso_account
 - ทุกตาราง RLS เปิดแบบ allow-all + อยู่ใน publication `supabase_realtime`
 
-## โครงหน้า (hash routing: #today #emp #detail #payroll #cal #adv #loan #dep #mou #shifts #holi #settings)
+## โครงหน้า (hash routing: #today #emp #detail #payroll #cal #adv #loan #dep #sso #mou #shifts #holi #settings)
 
 วันนี้ · พนักงาน · ข้อมูลพนักงาน(รายคน+ประวัติเงินเดือน) · สรุปเงินเดือน · ปฏิทินเข้างาน · เบิกกลางเดือน · เงินประกัน · เอกสาร MOU(+สมุดยืมเอกสาร) · กะการทำงาน · วันหยุดพิเศษ(ปุ่ม＋เพิ่มปี) · ตั้งค่า
 - หน้า cal/today/mou/dep เป็น full-width (`main:has(#page-X.active){max-width:none}` + ใน go())
