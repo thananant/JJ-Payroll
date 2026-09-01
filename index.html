@@ -1779,10 +1779,18 @@ function advQuota(emp, period){
     ? (ss.length ? +emp.rate * (ss.length / Math.max(1, empShiftsInPeriod(emp,period).length)) : 0)
     : ss.length * +emp.rate;
   const byRatio = Math.floor(earned * (settings.advRatio||0.5));
-  const cap = Math.min(settings.advMax||3000, byRatio);
+  // แผนก/ตำแหน่ง Manager เพดานเบิก 5,000 (เจ้าของสั่ง 2026-09-01) · คนอื่นตามตั้งค่า (3,000)
+  const mgr = /manager|ผู้จัดการ/i.test((emp.dept||'')+' '+(emp.position||''));
+  const maxCap = mgr ? 5000 : (settings.advMax||3000);
+  // เงินยืมโหมดหักตอนเบิกกลางเดือน: กันยอดผ่อนงวดนี้ออกจากสิทธิ์เบิก
+  // เช่น เพดาน 5,000 ผ่อนยืม 2,000 -> เบิกได้สูงสุด 3,000
+  const lo = (typeof loanCalc === 'function') ? loanCalc(emp, period) : null;
+  const loanHold = (lo && lo.loan && lo.loan.deductOn==='mid' && !lo.done) ? lo.ded : 0;
+  const cap = Math.max(0, Math.min(maxCap, byRatio) - loanHold);
   const taken = advances.filter(a=>a.empId===emp.id && a.period===period)
                         .reduce((a,x)=>a+ +x.amount,0);
-  return { earned, byRatio, cap, taken, left: Math.max(0, cap - taken), days: ss.length, upto };
+  return { earned, byRatio, cap, taken, left: Math.max(0, cap - taken), days: ss.length, upto,
+           mgr, maxCap, loanHold };
 }
 
 /* ---- เงินประกัน: หักอัตโนมัติเดือนละ depMonthly จนครบ depTarget ----
@@ -3698,7 +3706,7 @@ function renderAdv(){
   const q = (document.getElementById('advSearch').value||'').toLowerCase();
   document.getElementById('advInfo').innerHTML =
     `รอบ <b>${periodRangeLabel(period)}</b> · เบิกได้วันที่ <b>${dayLabel(r.adv)}</b> ·
-     เพดาน <b>${THB(settings.advMax)} บ.</b> หรือ <b>${Math.round(settings.advRatio*100)}%</b> ของที่ทำมา แล้วแต่อันไหนน้อยกว่า ·
+     เพดาน <b>${THB(settings.advMax)} บ.</b> (Manager <b>5,000</b>) หรือ <b>${Math.round(settings.advRatio*100)}%</b> ของที่ทำมา แล้วแต่อันไหนน้อยกว่า · คนผ่อนเงินยืมแบบหักตอนเบิก โดนกันยอดผ่อนออกจากสิทธิ์ ·
      หักคืนตอนจ่าย <b>${dayLabel(r.pay)}</b> · พิมพ์เกินเพดานได้ ระบบจะเตือนและให้ยืนยันก่อนบันทึก`;
 
   const list = employees.filter(e=>e.active && (!bf||e.branch===bf) &&
@@ -3730,7 +3738,7 @@ function renderAdv(){
     <td class="num">${q.days}</td>
     <td class="num">${THB(q.earned)}</td>
     <td class="num muted">${THB(q.byRatio)}</td>
-    <td class="num"><b>${THB(q.cap)}</b>${q.cap===settings.advMax && q.byRatio>settings.advMax? ' <span class="chip chip-gray">เพดาน</span>':''}</td>
+    <td class="num"><b>${THB(q.cap)}</b>${q.mgr?' <span class="chip chip-blue" title="แผนก/ตำแหน่ง Manager เพดาน 5,000">M</span>':''}${q.loanHold?' <span class="chip chip-amber" title="กันยอดผ่อนเงินยืมงวดนี้ออกจากสิทธิ์เบิกแล้ว">−ผ่อน '+THB(q.loanHold)+'</span>':(q.cap===q.maxCap && q.byRatio>q.maxCap? ' <span class="chip chip-gray">เพดาน</span>':'')}</td>
     <td class="num" style="color:${q.taken?'var(--red)':'inherit'}">${q.taken?THB(q.taken):'–'}</td>
     <td class="num">
       <div style="display:flex;gap:5px;align-items:center;justify-content:flex-end">
