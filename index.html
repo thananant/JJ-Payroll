@@ -291,7 +291,7 @@ tr.grp-dept td{background:#faf7f1;font-size:11.5px;font-weight:600;color:var(--i
   </nav>
   <div class="side-foot">
     <div style="font-size:11.5px;color:#8a8076;padding:0 4px 2px"><span class="dot" id="connDot"></span><span id="connTxt">เชื่อมต่อแล้ว</span></div>
-    <button class="btn btn-ghost" onclick="loadAll()">🔄 รีเฟรชข้อมูล</button>
+    <button class="btn btn-ghost" title="ล้างแคชในเครื่อง แล้วโหลดใหม่ทั้งหมดจากฐานข้อมูล" onclick="refreshAll()">🔄 รีเฟรชข้อมูล</button>
     <button class="btn btn-ghost" onclick="saveJSON()">💾 ดาวน์โหลดสำรอง</button>
   </div>
 </aside>
@@ -1237,24 +1237,72 @@ async function loadAll(){
   busy(false);
 }
 
+/* ---- แคชเวลาตอกบัตรไว้ในเครื่อง (IndexedDB) ----
+   เปิดครั้งแรกโหลดเต็มครั้งเดียว · ครั้งต่อไปใช้ของเก่าจากเครื่อง แล้วโหลดสดเฉพาะ
+   "งวดปัจจุบัน" (กันเคสแก้/ลบเวลาย้อนหลังจากเครื่องอื่น) — เร็วขึ้นมากและไม่โตตามอายุระบบ
+   ปุ่ม 🔄 รีเฟรชข้อมูล = ล้างแคชแล้วโหลดใหม่ทั้งหมด */
+const PCACHE_VER = 1;
+function idbKV(mode, fn){ return new Promise((res)=>{ try{
+  const q = indexedDB.open('jjmk-cache', 1);
+  q.onupgradeneeded = () => { q.result.createObjectStore('kv'); };
+  q.onerror = () => res(null);
+  q.onsuccess = () => { try{
+    const t = q.result.transaction('kv', mode);
+    const r = fn(t.objectStore('kv'));
+    r.onsuccess = () => res(r.result); r.onerror = () => res(null);
+  }catch(_){ res(null); } };
+}catch(_){ res(null); } }); }
+const idbGet = k => idbKV('readonly', st=>st.get(k));
+const idbSet = (k,v) => idbKV('readwrite', st=>st.put(v,k));
+const idbDel = k => idbKV('readwrite', st=>st.delete(k));
+let pcTimer = null;
+function savePunchCacheSoon(){
+  clearTimeout(pcTimer);
+  pcTimer = setTimeout(()=>{ idbSet('punches', { ver:PCACHE_VER, saved:Date.now(), rows:punches }); }, 3000);
+}
+async function refreshAll(){ busy(true,'ล้างแคชในเครื่อง…'); await idbDel('punches'); loadAll(); }
+
+/* ดึงข้อมูลตอกบัตรตั้งแต่วันที่กำหนด — นับจำนวนก่อนแล้วยิงทีละ 10 หน้าพร้อมกัน (เร็วกว่าทีละหน้ามาก) */
+async function fetchPunchRange(from){
+  const { count, error: cErr } = await db.from('punches')
+    .select('id', { count:'exact', head:true }).gte('punch_date', from);
+  if(cErr) throw cErr;
+  const total = count||0, pages = Math.ceil(total/1000), out = [];
+  for(let i=0; i<pages; i+=10){
+    busy(true, 'โหลดข้อมูลตอกบัตร '+Math.min(i*1000, total).toLocaleString()+' / '+total.toLocaleString()+'…');
+    const batch = await Promise.all([...Array(Math.min(10, pages-i))].map((_,j)=>
+      db.from('punches').select('emp_code,punch_date,punch_time,device_sn')
+        .gte('punch_date', from).order('id')
+        .range((i+j)*1000, (i+j)*1000+999)));
+    for(const r of batch){
+      if(r.error) throw r.error;
+      for(const p of r.data) out.push({ code:p.emp_code, date:p.punch_date,
+        time:String(p.punch_time).slice(0,5), sn:p.device_sn||'' });
+    }
+  }
+  return out;
+}
+
 async function loadPunches(){
   const d = new Date(); d.setMonth(d.getMonth() - (settings.loadMonths||6));
   const since = localYMD(d);
-  punches = [];
-  let start = 0;
-  while(true){
-    const { data, error } = await db.from('punches')
-      .select('emp_code,punch_date,punch_time,device_sn')
-      .gte('punch_date', since)
-      .order('punch_date').order('punch_time')
-      .range(start, start+999);
-    if(error) throw error;
-    for(const r of data) punches.push({ code:r.emp_code, date:r.punch_date,
-      time:String(r.punch_time).slice(0,5), sn:r.device_sn||'' });
-    if(data.length < 1000) break;
-    start += 1000;
-    busy(true, 'โหลดข้อมูลตอกบัตร '+punches.length.toLocaleString()+' รายการ…');
+  const curFrom = periodRange(periodOf(localYMD(new Date()))).from;   // วันเปิดงวดปัจจุบัน (26 เดือนก่อน)
+  let cached = null;
+  try{
+    const c = await idbGet('punches');
+    if(c && c.ver === PCACHE_VER && Array.isArray(c.rows) && c.rows.length) cached = c.rows;
+  }catch(_){ cached = null; }
+  if(cached){
+    const old = cached.filter(p=>p.date >= since && p.date < curFrom);
+    busy(true, 'โหลดข้อมูลตอกบัตรงวดปัจจุบัน… (ก่อนหน้านั้นใช้แคชในเครื่อง)');
+    const fresh = await fetchPunchRange(curFrom);
+    punches = old.concat(fresh);
+  } else {
+    busy(true, 'โหลดข้อมูลตอกบัตรครั้งแรกของเครื่องนี้ — ครั้งต่อไปจะเร็วขึ้นมาก…');
+    punches = await fetchPunchRange(since);
   }
+  punches.sort((a,b)=> a.date===b.date ? (a.time<b.time?-1:a.time>b.time?1:0) : (a.date<b.date?-1:1));
+  savePunchCacheSoon();
 }
 
 const THB  = n => (n==null||isNaN(n))?'–':n.toLocaleString('th-TH',{maximumFractionDigits:0});
@@ -1453,6 +1501,7 @@ function detectShift(day, ts, emp){
 const closestTo = (arr, target) => arr.reduce((a,b)=> Math.abs(b-target) < Math.abs(a-target) ? b : a);
 
 function recomputeAll(){
+  if(typeof savePunchCacheSoon === 'function') savePunchCacheSoon();   // ข้อมูลตอกเปลี่ยนเมื่อไร อัปเดตแคชตาม (debounce)
   shifts = {};
   const byEmpDay = {};
   for(const p of punches){
