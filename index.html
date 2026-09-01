@@ -474,6 +474,7 @@ tr.grp-dept td{background:#faf7f1;font-size:11.5px;font-weight:600;color:var(--i
       <option value="0">🚫 พ้นสภาพ</option>
     </select>
     <span style="flex:1"></span>
+    <button class="btn btn-light" onclick="openTips()">💰 ทิปประจำงวด</button>
     <button class="btn btn-light" onclick="exportPayrollXlsx()">📤 Export Excel</button>
     <button class="btn btn-ember" onclick="openSlipPicker()">🖨️ พิมพ์สลิป (เลือกคนได้)</button>
     <button class="btn btn-light" onclick="openTransferSummary()">🏦 บัญชีรับเกิน 1 คน</button>
@@ -916,6 +917,37 @@ tr.grp-dept td{background:#faf7f1;font-size:11.5px;font-weight:600;color:var(--i
   </div>
 </div>
 
+<!-- ============ ทิปประจำงวด หารเท่ากันทุกคนในสาขา ============ -->
+<div class="modal-bg" id="tipBg" onclick="if(event.target===this)closeModal('tipBg')">
+  <div class="modal" style="max-width:480px">
+    <button class="close" onclick="closeModal('tipBg')">✕</button>
+    <h2 class="font-display">💰 ทิปประจำงวด <span id="tipPeriodLb"></span></h2>
+    <p class="muted" style="margin-bottom:14px">ใส่ยอดทิปรวมของแต่ละสาขา ระบบหารเท่ากันให้ทุกคนในสาขาที่มีวันทำงานในงวดนี้ (เศษสตางค์ปัดลง) แล้วบวกเข้าเงินเดือน/สลิปอัตโนมัติ · เว้นว่างหรือ 0 = ไม่มีทิป</p>
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <label style="margin:0">ลาดพร้าว (JJLP)
+        <input type="number" id="tip_JJLP" min="0" step="any" inputmode="decimal" placeholder="ยอดทิปรวม (บาท)" oninput="tipPreview()">
+        <span class="muted" id="tipPrev_JJLP" style="font-size:12.5px"></span>
+      </label>
+      <label style="margin:0">รัชดา (JJRD)
+        <input type="number" id="tip_JJRD" min="0" step="any" inputmode="decimal" placeholder="ยอดทิปรวม (บาท)" oninput="tipPreview()">
+        <span class="muted" id="tipPrev_JJRD" style="font-size:12.5px"></span>
+      </label>
+      <label style="margin:0">ครัวกลาง (JJCK)
+        <input type="number" id="tip_JJCK" min="0" step="any" inputmode="decimal" placeholder="ยอดทิปรวม (บาท)" oninput="tipPreview()">
+        <span class="muted" id="tipPrev_JJCK" style="font-size:12.5px"></span>
+      </label>
+      <label style="margin:0">ออฟฟิศ (OFFICE)
+        <input type="number" id="tip_OFFICE" min="0" step="any" inputmode="decimal" placeholder="ยอดทิปรวม (บาท)" oninput="tipPreview()">
+        <span class="muted" id="tipPrev_OFFICE" style="font-size:12.5px"></span>
+      </label>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
+      <button class="btn btn-light" onclick="closeModal('tipBg')">ยกเลิก</button>
+      <button class="btn btn-ember" onclick="saveTips()">💾 บันทึกทิป</button>
+    </div>
+  </div>
+</div>
+
 <!-- ============ เลือกพนักงานที่จะพิมพ์สลิป ============ -->
 <div class="modal-bg" id="slipPickBg" onclick="if(event.target===this)closeModal('slipPickBg')">
   <div class="modal">
@@ -1114,6 +1146,9 @@ let loanEntries = [];      // override หักผ่อนรายงวด
 let loanReady = false;     // true เมื่อรัน jj_loans.sql แล้ว
 let ssoEntries = [];       // ประกันสังคม: override หักรายงวด
 let ssoReady = false;      // true เมื่อรัน jj_sso.sql แล้ว
+let tips = [];             // ทิปประจำงวด: ยอดรวมต่อสาขา {id, period, branch, amount}
+let tipReady = false;      // true เมื่อรัน jj_tips.sql แล้ว
+let tipMemo = {};          // จำจำนวนคนหารต่อ 'งวด|สาขา' (ล้างใน recomputeAll)
 let empInfoReady = false;  // true เมื่อรัน jj_employee_info.sql แล้ว (วันเกิด/เบอร์/บัญชี)
 let workDateReady = false; // true เมื่อรัน jj_work_dates.sql แล้ว (วันเริ่มงาน/วันสิ้นสุด)
 let kbizReady = false;     // true เมื่อรัน jj_kbiz_added.sql แล้ว (จำว่าใครถูกแอดบัญชี K BIZ แล้ว)
@@ -1188,6 +1223,7 @@ const fromDbLoan = r => ({ id:r.id, empId:r.employee_id, amount:+r.amount, month
   loanDate:r.loan_date||null, note:r.note||'' });
 const fromDbLoanE = r => ({ id:r.id, empId:r.employee_id, period:r.period, amount:+r.amount });
 const fromDbSsoE = r => ({ id:r.id, empId:r.employee_id, period:r.period, amount:+r.amount });
+const fromDbTip = r => ({ id:r.id, period:r.period, branch:r.branch, amount:+r.amount });
 const fromDbAdj = r => ({ id:r.id, empId:r.employee_id, kind:r.kind, reason:r.reason,
   amount:+r.amount, period:r.period });
 
@@ -1251,6 +1287,10 @@ async function loadAll(){
         ssoEntries = (se.data||[]).map(fromDbSsoE); ssoReady = true;
       }
     }catch(_){ ssoReady = false; /* ยังไม่รัน jj_sso.sql */ }
+    try{
+      const tp = await db.from('tips').select('*');
+      if(!tp.error){ tips = (tp.data||[]).map(fromDbTip); tipReady = true; }
+    }catch(_){ tipReady = false; /* ยังไม่รัน jj_tips.sql */ }
     devBranch = {}; (dv.data||[]).forEach(d=>{ if(d.branch) devBranch[d.sn] = d.branch; });
 
     shiftDefs = (sh.data||[]).map(fromDbShift);
@@ -1557,6 +1597,7 @@ const closestTo = (arr, target) => arr.reduce((a,b)=> Math.abs(b-target) < Math.
 
 function recomputeAll(){
   if(typeof savePunchCacheSoon === 'function') savePunchCacheSoon();   // ข้อมูลตอกเปลี่ยนเมื่อไร อัปเดตแคชตาม (debounce)
+  tipMemo = {};   // จำนวนคนหารทิปขึ้นกับวันทำงาน — คำนวณใหม่ทุกครั้งที่ข้อมูลตอกเปลี่ยน
   shifts = {};
   const byEmpDay = {};
   for(const p of punches){
@@ -1787,7 +1828,8 @@ function calcPay(emp, period){
 
   const adds = adjustments.filter(a=>a.empId===emp.id && a.period===period && a.kind==='add');
   const dedu = adjustments.filter(a=>a.empId===emp.id && a.period===period && a.kind==='deduct');
-  const addSum = adds.reduce((a,x)=>a+ +x.amount,0) + holiBonus + noOffBonus;
+  const tip = tipCalc(emp, period);   // ทิปประจำงวด: หารเท่ากันทุกคนในสาขา เศษปัดลง
+  const addSum = adds.reduce((a,x)=>a+ +x.amount,0) + holiBonus + noOffBonus + tip.share;
   /* ---- รายการหักอัตโนมัติ: มี override รายงวด (fine_entries) แก้ยอดได้ถ้าหักผิด ---- */
   const fineOv = k => fineReady ? (fineEntries.find(x=>x.empId===emp.id && x.period===period && x.kind===k) || null) : null;
   const fineOvs = { miss:fineOv('miss'), late:fineOv('late'), single:fineOv('single'), must:fineOv('must') };
@@ -1817,7 +1859,7 @@ function calcPay(emp, period){
   return { days, lateCount, singleCount, singleDays, hours, fullHrs, missMin, lateMin, earlyMin, shortMin,
            base, adds, dedu, addSum, deduSum, missFine, lateAuto, singleFine, advs, advSum,
            dRate, holiDays, holiBonus, paidHoli, holiWorked, holiInPeriod, mustViol, mustFine,
-           dep, mou, eloan, sso, offDue, offUsed, noOffDays, noOffBonus, wkOffWorked,
+           dep, mou, eloan, sso, tip, offDue, offUsed, noOffDays, noOffBonus, wkOffWorked,
            crossDays, byBranch, dip,
            prorate, partialStart, partialEnd, effStart,
            fineOvs, missFine0, lateAuto0, singleFine0, mustFine0, mustPerDay, mustX,
@@ -2182,6 +2224,79 @@ async function delMouLoan(loanId){
   mouEntries = mouEntries.filter(x=>x.empId!==L.empId);
   renderMou(); renderPayroll(); renderDetail(); toast('ลบแล้ว');
 }
+/* ================= ทิปประจำงวด =================
+   ใส่ยอดทิปรวมของแต่ละสาขาต่องวด (ตาราง tips) แล้วหารเท่ากันให้
+   "ทุกคนในสาขาที่มีวันทำงานในงวดนั้น" — เศษสตางค์ปัดลง (เจ้าของสั่ง 2026-09-01)
+   บวกเข้าเงินเดือน/สลิปอัตโนมัติผ่าน calcPay */
+function tipHeads(period, branch){
+  const k = period+'|'+branch;
+  if(tipMemo[k] != null) return tipMemo[k];
+  return tipMemo[k] = employees.filter(x=>(x.branch||'')===branch &&
+    empShiftsInPeriod(x, period).length > 0).length;
+}
+function tipCalc(emp, period){
+  const zero = { pool:0, n:0, share:0 };
+  if(!tipReady) return zero;
+  const t = tips.find(x=>x.period===period && x.branch===(emp.branch||''));
+  if(!t || !(+t.amount > 0)) return zero;
+  const n = tipHeads(period, t.branch);
+  const worked = empShiftsInPeriod(emp, period).length > 0;
+  return { pool:+t.amount, n, share: (worked && n) ? Math.floor(+t.amount / n) : 0 };
+}
+function openTips(){
+  if(!tipReady) return toast('❌ ต้องรัน jj_tips.sql ใน Supabase ก่อน');
+  const period = document.getElementById('periodSel').value || allPeriods()[0] || '';
+  if(!period) return toast('❌ ยังไม่มีงวดให้ใส่ทิป');
+  document.getElementById('tipBg').dataset.period = period;
+  document.getElementById('tipPeriodLb').textContent = periodLabel(period);
+  for(const b of Object.keys(BR)){
+    const t = tips.find(x=>x.period===period && x.branch===b);
+    const el = document.getElementById('tip_'+b);
+    if(el) el.value = (t && +t.amount) ? +t.amount : '';
+  }
+  tipPreview();
+  document.getElementById('tipBg').classList.add('show');
+}
+function tipPreview(){
+  const period = document.getElementById('tipBg').dataset.period || '';
+  for(const b of Object.keys(BR)){
+    const el = document.getElementById('tip_'+b), out = document.getElementById('tipPrev_'+b);
+    if(!el || !out) continue;
+    const v = Math.max(0, +el.value||0), n = tipHeads(period, b);
+    if(!(v>0)){ out.textContent = 'เว้นว่าง = ไม่มีทิปงวดนี้'; continue; }
+    if(!n){ out.innerHTML = '<b style="color:var(--red)">ไม่มีคนทำงานในงวดนี้ — จะไม่ถูกแจก</b>'; continue; }
+    const share = Math.floor(v/n), left = Math.round((v - share*n)*100)/100;
+    out.innerHTML = `หาร ${n} คน → คนละ <b style="color:var(--green)">${THB(share)}</b> บาท`+
+      (left? ` · เศษ ${THB2(left)} บาท ปัดลง (ไม่แจก)` : '');
+  }
+}
+async function saveTips(){
+  if(!tipReady) return toast('❌ ต้องรัน jj_tips.sql ใน Supabase ก่อน');
+  const period = document.getElementById('tipBg').dataset.period;
+  if(!period) return;
+  try{
+    for(const b of Object.keys(BR)){
+      const el = document.getElementById('tip_'+b); if(!el) continue;
+      const v = Math.max(0, +el.value||0);
+      const cur = tips.find(x=>x.period===period && x.branch===b);
+      if(v > 0){
+        const { data, error } = await db.from('tips')
+          .upsert({ period, branch:b, amount:v }, { onConflict:'period,branch' })
+          .select().single();
+        if(error) throw error;
+        if(cur) cur.amount = v; else tips.push(fromDbTip(data));
+      } else if(cur){
+        const { error } = await db.from('tips').delete().eq('id', cur.id);
+        if(error) throw error;
+        tips = tips.filter(x=>x.id!==cur.id);
+      }
+    }
+  }catch(e){ return dbErr(e,'บันทึกทิป'); }
+  closeModal('tipBg');
+  renderPayroll(); renderDetail();
+  toast('💰 บันทึกทิปงวด '+periodLabel(period)+' แล้ว');
+}
+
 /* ================= ประกันสังคม (สปส.) =================
    หักเฉพาะคนที่ติ๊ก "เข้าประกันสังคม" (employees.sso_on)
    ฐานค่าจ้าง = ค่าแรงงวดนั้น ประกบเข้าช่วง sso_min–sso_max (1,650–15,000)
@@ -3296,6 +3411,7 @@ function renderDetail(){
           <tr><td>ค่าแรง ${isHr?'('+p.fullHrs+' ชม. × '+THB(e.rate)+')':e.type==='monthly'?(p.prorate?'('+p.days+' วัน × '+THB(Math.round(p.dRate))+' — เข้า/ออกระหว่างงวด คิดรายวัน)':'(เหมาเดือน)'):'('+p.days+' วัน × '+THB(e.rate)+')'}</td><td class="num">${THB2(p.base)}</td></tr>
           ${p.noOffBonus? `<tr><td style="color:var(--green)">＋ เบี้ยไม่หยุด (${p.noOffDays} วัน × ${THB(Math.round(p.dRate))})</td><td class="num" style="color:var(--green)">${THB2(p.noOffBonus)}</td></tr>`:''}
           ${p.holiBonus? `<tr><td style="color:var(--green)">＋ เบี้ยวันหยุดพิเศษ (${p.holiDays.filter(h=>h.ok).length} วัน)</td><td class="num" style="color:var(--green)">${THB2(p.holiBonus)}</td></tr>`:''}
+          ${p.tip && p.tip.share? `<tr><td style="color:var(--green)">＋ ทิปประจำเดือน (กองกลาง ${p.tip.pool%1?THB2(p.tip.pool):THB(p.tip.pool)} ÷ ${p.tip.n} คน)</td><td class="num" style="color:var(--green)">${THB2(p.tip.share)}</td></tr>`:''}
           ${p.adds.map(a=>`<tr><td style="color:var(--green)">＋ ${a.reason} <button class="btn btn-red btn-sm" style="padding:1px 7px" onclick="delAdj(${a.id})">✕</button></td><td class="num" style="color:var(--green)">${THB2(+a.amount)}</td></tr>`).join('')}
           ${(p.missFine||p.fineOvs.miss)? `<tr><td style="color:var(--red)">－ หัก${isH?'ชั่วโมงไม่ครบ':'สาย/ออกก่อน'} (${p.missMin} น. × ${settings.minFine})${p.fineOvs.miss?' <span class="chip chip-amber" title="อัตโนมัติ '+THB(p.missFine0)+' บาท">แก้เอง</span>':''} <button class="btn btn-light btn-sm" style="padding:1px 7px" title="แก้ยอดหัก (หักผิดแก้ได้)" onclick="editFine(${e.id},'${period}','miss')">✎</button></td><td class="num" style="color:var(--red)">-${THB2(p.missFine)}</td></tr>`:''}
           ${(p.lateAuto||p.fineOvs.late)? `<tr><td style="color:var(--red)">－ ปรับมาสาย (${p.lateCount} ครั้ง × ${THB(settings.lateFine)})${p.fineOvs.late?' <span class="chip chip-amber" title="อัตโนมัติ '+THB(p.lateAuto0)+' บาท">แก้เอง</span>':''} <button class="btn btn-light btn-sm" style="padding:1px 7px" title="แก้ยอดหัก (หักผิดแก้ได้)" onclick="editFine(${e.id},'${period}','late')">✎</button></td><td class="num" style="color:var(--red)">-${THB2(p.lateAuto)}</td></tr>`:''}
@@ -3684,6 +3800,7 @@ function buildSlip(e, period, compact){
           <tr><td>ค่าแรง ${isHr?'('+p.fullHrs+' ชม.เต็ม × '+THB(e.rate)+')':e.type==='monthly'?(p.prorate?'('+p.days+' วัน × '+THB(Math.round(p.dRate))+' — เข้า/ออกระหว่างงวด คิดรายวัน)':'(เหมาเดือน)'):'('+p.days+' วัน × '+THB(e.rate)+')'}</td><td class="num">${THB2(p.base)}</td></tr>
           ${p.noOffBonus? `<tr><td>เบี้ยไม่หยุด (${p.noOffDays} วัน × ${THB(Math.round(p.dRate))})<br><span style="font-size:10px;color:#6b625b">สิทธิ์หยุด ${p.offDue} วัน · ใช้ไป ${p.offUsed} วัน</span></td><td class="num">${THB2(p.noOffBonus)}</td></tr>`:''}
           ${p.holiDays.filter(h=>h.ok).map(h=>`<tr><td>🎌 ${h.name} ${dayLabel(h.day)} (×${h.mult})</td><td class="num">${THB2(h.bonus)}</td></tr>`).join('')}
+          ${p.tip && p.tip.share? `<tr><td>ทิปประจำเดือน (กองกลาง ${p.tip.pool%1?THB2(p.tip.pool):THB(p.tip.pool)} ÷ ${p.tip.n} คน)</td><td class="num">${THB2(p.tip.share)}</td></tr>`:''}
           ${(()=>{
             // OT รายวันยุบเป็นบรรทัดเดียว (สรุปรวมชั่วโมง) — สลิปจะได้ไม่ล้นครึ่งหน้า
             const otRe = /^OT .+\(([\d.]+) ชม\.\)$/;
@@ -4508,7 +4625,7 @@ function renderPayroll(){
       <td class="num">${p.advSum? '<span style="color:var(--red)">-'+THB(p.advSum)+'</span>':'–'}</td>
       <td class="num clickable" title="เงินประกัน · สะสม ${THB(p.dep.collected)}/${THB(p.dep.target)} — คลิกเพื่อแก้งวดนี้" onclick="event.stopPropagation();editDeposit(${e.id},'${period}')">${p.dep.ded? '<span style="color:var(--red)">-'+THB(p.dep.ded)+'</span>'+(p.dep.override?' <span class="chip chip-amber">✎</span>':'') : (p.dep.done&&p.dep.target? '<span class="chip chip-green">✓</span>':'–')}</td>
       <td class="num">${THB(p.base)}${p.prorate?' <span class="chip chip-blue" title="เข้า/ออกระหว่างงวด — คิดค่าแรงเป็นรายวัน ('+p.days+' วัน × '+THB(Math.round(p.dRate))+')">วัน</span>':''}</td>
-      <td class="num" style="color:${p.addSum?'var(--green)':'inherit'}" title="${[p.noOffBonus?'เบี้ยไม่หยุด '+THB(p.noOffBonus):'',p.holiBonus?'เบี้ยวันหยุดพิเศษ '+THB(p.holiBonus):''].filter(Boolean).join(' · ')}">${p.addSum?'+'+THB(p.addSum):'–'}</td>
+      <td class="num" style="color:${p.addSum?'var(--green)':'inherit'}" title="${[p.noOffBonus?'เบี้ยไม่หยุด '+THB(p.noOffBonus):'',p.holiBonus?'เบี้ยวันหยุดพิเศษ '+THB(p.holiBonus):'',p.tip&&p.tip.share?'ทิป '+THB(p.tip.share):''].filter(Boolean).join(' · ')}">${p.addSum?'+'+THB(p.addSum):'–'}</td>
       <td class="num" style="color:${p.deduSum?'var(--red)':'inherit'}">${p.deduSum?'-'+THB(p.deduSum):'–'}</td>
       <td class="num" style="font-weight:700">${THB(p.net)}</td>
       <td><div class="act">
@@ -4788,6 +4905,10 @@ function startRealtime(){
     .on('postgres_changes', { event:'*', schema:'public', table:'sso_entries' }, async ()=>{
       try{ const { data } = await db.from('sso_entries').select('*');
         if(data){ ssoEntries = data.map(fromDbSsoE); rtQueue++; scheduleRtRefresh(); } }catch(_){}
+    })
+    .on('postgres_changes', { event:'*', schema:'public', table:'tips' }, async ()=>{
+      try{ const { data } = await db.from('tips').select('*');
+        if(data){ tips = data.map(fromDbTip); rtQueue++; scheduleRtRefresh(); } }catch(_){}
     })
     .on('postgres_changes', { event:'*', schema:'public', table:'doc_borrows' }, async ()=>{
       try{ const { data } = await db.from('doc_borrows').select('*').order('borrow_date',{ascending:false});
