@@ -95,6 +95,7 @@ main:has(#page-cal.active){max-width:none}   /* หน้าปฏิทิน�
 main:has(#page-today.active){max-width:none} /* หน้าวันนี้ด้วย ข้อมูลเยอะ */
 main:has(#page-mou.active){max-width:none}   /* หน้า MOU ตารางกว้าง */
 main:has(#page-dep.active){max-width:none}   /* หน้าเงินประกันด้วย */
+main:has(#page-loan.active){max-width:none}  /* หน้าพนักงานยืมเงิน ตารางกว้าง */
 .page{display:none}.page.active{display:block}
 
 .card{background:var(--panel);border:1px solid #f3ede5;border-radius:var(--radius);padding:22px;margin-bottom:18px;box-shadow:var(--shadow)}
@@ -281,6 +282,7 @@ tr.grp-dept td{background:#faf7f1;font-size:11.5px;font-weight:600;color:var(--i
     <button data-page="payroll" onclick="go('payroll')">💰 สรุปเงินเดือน</button>
     <button data-page="cal" onclick="go('cal')">📅 ปฏิทินเข้างาน</button>
     <button data-page="adv" onclick="go('adv')">💵 เบิกกลางเดือน</button>
+    <button data-page="loan" onclick="go('loan')">💳 พนักงานยืมเงิน</button>
     <button data-page="dep" onclick="go('dep')">🛡️ เงินประกัน</button>
     <button data-page="mou" onclick="go('mou')">📄 เอกสาร MOU</button>
     <button data-page="shift" onclick="go('shift')">🕐 กะการทำงาน</button>
@@ -372,6 +374,30 @@ tr.grp-dept td{background:#faf7f1;font-size:11.5px;font-weight:600;color:var(--i
   <div class="muted" id="advInfo" style="margin-bottom:10px"></div>
   <div class="stats" id="advStats"></div>
   <div class="tbl-wrap"><table id="advTable"></table></div>
+</div>
+
+<!-- ============ LOAN (พนักงานยืมเงิน) ============ -->
+<div class="page" id="page-loan">
+  <div class="toolbar">
+    <label style="margin:0;display:flex;align-items:center;gap:8px;font-size:14px">งวด:
+      <select id="loanPeriodSel" onchange="renderLoan()" style="width:auto;min-width:200px"></select>
+    </label>
+    <select id="loanBranch" onchange="renderLoan()" style="width:auto;min-width:150px">
+      <option value="">ทุกสาขา</option><option value="JJLP">ลาดพร้าว</option>
+      <option value="JJRD">รัชดา</option><option value="JJCK">ครัวกลาง</option><option value="OFFICE">ออฟฟิศ</option>
+    </select>
+    <select id="loanStatus" onchange="renderLoan()" style="width:auto;min-width:150px">
+      <option value="">ทุกสถานะ</option>
+      <option value="paying">⏳ กำลังผ่อน</option>
+      <option value="done">✓ ผ่อนครบแล้ว</option>
+    </select>
+    <input type="search" id="loanSearch" placeholder="ค้นหาชื่อ…" oninput="renderLoan()" style="max-width:200px">
+    <span style="flex:1"></span>
+    <button class="btn btn-ember" onclick="openLoanForm()">＋ บันทึกยืมเงิน</button>
+  </div>
+  <div class="muted" id="loanInfo" style="margin-bottom:10px"></div>
+  <div class="stats" id="loanStats"></div>
+  <div class="tbl-wrap"><table id="loanTable"></table></div>
 </div>
 
 <!-- ============ CALENDAR ============ -->
@@ -913,6 +939,35 @@ tr.grp-dept td{background:#faf7f1;font-size:11.5px;font-weight:600;color:var(--i
 </div>
 
 <!-- ============ MOU MODAL ============ -->
+<div class="modal-bg" id="loanBg" onclick="if(event.target===this)closeModal('loanBg')">
+  <div class="modal">
+    <button class="close" onclick="closeModal('loanBg')">✕</button>
+    <h2 class="font-display">💳 บันทึกพนักงานยืมเงิน</h2>
+    <p class="muted" style="margin-bottom:14px">เงินยืมทั่วไป (แยกจาก MOU) · ระบบหักผ่อนคืนให้อัตโนมัติทุกงวดจนครบ</p>
+    <div class="grid g2">
+      <div style="grid-column:1/-1"><label>พนักงาน *</label>
+        <input id="loanEmpSearch" placeholder="🔍 พิมพ์ชื่อ / รหัส เพื่อค้นหา…" oninput="fillLoanEmp(this.value)" style="margin-bottom:6px">
+        <div class="emp-pick" id="loanEmpList"></div></div>
+      <div><label>ยอดเงินที่ยืม (บาท) *</label><input type="number" id="loanAmount" min="0" step="500" placeholder="เช่น 5000"></div>
+      <div><label>ผ่อนคืนต่องวด (บาท) *</label><input type="number" id="loanMonthly" value="1000" min="0" step="100"></div>
+      <div><label>หักตอนไหน</label>
+        <select id="loanOn">
+          <option value="payroll">🧾 รอบจ่ายเงินเดือนปกติ (หักในสลิป)</option>
+          <option value="mid">💵 เบิกกลางเดือน (หักจากยอดโอนวันที่ 15)</option>
+        </select>
+        <p class="muted" style="margin-top:4px">แบบเบิกกลางเดือน: ถ้างวดไหนยอดเบิกไม่พอ ส่วนที่เหลือไปหักตอนจ่ายเงินเดือนให้เอง</p></div>
+      <div><label>เริ่มหักตั้งแต่งวด</label><select id="loanStart"></select></div>
+      <div><label>วันที่ยืม</label><input type="date" id="loanDate"></div>
+      <div><label>ผ่อนไปแล้วก่อนเริ่มใช้ระบบ (บาท)</label><input type="number" id="loanOpening" value="0" min="0" step="100"></div>
+      <div style="grid-column:1/-1"><label>หมายเหตุ</label><input id="loanNote" placeholder="เช่น ยืมค่ารักษาพยาบาล — ไม่ใส่ก็ได้"></div>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:20px;justify-content:flex-end">
+      <button class="btn btn-light" onclick="closeModal('loanBg')">ยกเลิก</button>
+      <button class="btn btn-ember" onclick="saveLoan()">บันทึก</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-bg" id="mouBg" onclick="if(event.target===this)closeModal('mouBg')">
   <div class="modal">
     <button class="close" onclick="closeModal('mouBg')">✕</button>
@@ -1013,6 +1068,9 @@ let mouLoans = [];         // เงินยืม MOU รายคน
 let mouEntries = [];       // override การหัก MOU รายงวด
 let docBorrows = [];       // สมุดยืม-คืนเอกสาร
 let mouReady = false;      // true เมื่อรัน jj_mou.sql แล้ว
+let loans = [];            // พนักงานยืมเงิน (เงินยืมทั่วไป) รายคน
+let loanEntries = [];      // override หักผ่อนรายงวด
+let loanReady = false;     // true เมื่อรัน jj_loans.sql แล้ว
 let empInfoReady = false;  // true เมื่อรัน jj_employee_info.sql แล้ว (วันเกิด/เบอร์/บัญชี)
 let workDateReady = false; // true เมื่อรัน jj_work_dates.sql แล้ว (วันเริ่มงาน/วันสิ้นสุด)
 let kbizReady = false;     // true เมื่อรัน jj_kbiz_added.sql แล้ว (จำว่าใครถูกแอดบัญชี K BIZ แล้ว)
@@ -1080,6 +1138,10 @@ const fromDbMou = r => ({ id:r.id, empId:r.employee_id, amount:+r.amount, monthl
 const fromDbMouE = r => ({ id:r.id, empId:r.employee_id, period:r.period, amount:+r.amount });
 const fromDbBorrow = r => ({ id:r.id, empId:r.employee_id, doc:r.doc||'', borrowDate:r.borrow_date,
   returnDate:r.return_date||null, note:r.note||'' });
+const fromDbLoan = r => ({ id:r.id, empId:r.employee_id, amount:+r.amount, monthly:+r.monthly,
+  deductOn:r.deduct_on||'payroll', startPeriod:r.start_period||'', opening:+(r.opening||0),
+  loanDate:r.loan_date||null, note:r.note||'' });
+const fromDbLoanE = r => ({ id:r.id, empId:r.employee_id, period:r.period, amount:+r.amount });
 const fromDbAdj = r => ({ id:r.id, empId:r.employee_id, kind:r.kind, reason:r.reason,
   amount:+r.amount, period:r.period });
 
@@ -1127,6 +1189,16 @@ async function loadAll(){
         mouReady = true;
       }
     }catch(_){ mouReady = false; /* ยังไม่รัน jj_mou.sql */ }
+    try{
+      const [lo, le] = await Promise.all([
+        db.from('loans').select('*'), db.from('loan_entries').select('*'),
+      ]);
+      if(!lo.error && !le.error){
+        loans = (lo.data||[]).map(fromDbLoan);
+        loanEntries = (le.data||[]).map(fromDbLoanE);
+        loanReady = true;
+      }
+    }catch(_){ loanReady = false; /* ยังไม่รัน jj_loans.sql */ }
     devBranch = {}; (dv.data||[]).forEach(d=>{ if(d.branch) devBranch[d.sn] = d.branch; });
 
     shiftDefs = (sh.data||[]).map(fromDbShift);
@@ -1227,13 +1299,13 @@ function go(p){
   document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));
   document.getElementById('page-'+p).classList.add('active');
   document.querySelectorAll('aside nav button').forEach(b=>b.classList.toggle('active',b.dataset.page===p));
-  document.querySelector('main').style.maxWidth = (p==='cal'||p==='today'||p==='mou'||p==='dep') ? 'none' : '';
-  if(p==='emp')renderEmp(); if(p==='payroll')renderPayroll(); if(p==='cal')renderCalendar(); if(p==='adv')renderAdv(); if(p==='dep')renderDeposit(); if(p==='mou')renderMou(); if(p==='holi')renderHoli();
+  document.querySelector('main').style.maxWidth = (p==='cal'||p==='today'||p==='mou'||p==='dep'||p==='loan') ? 'none' : '';
+  if(p==='emp')renderEmp(); if(p==='payroll')renderPayroll(); if(p==='cal')renderCalendar(); if(p==='adv')renderAdv(); if(p==='dep')renderDeposit(); if(p==='mou')renderMou(); if(p==='loan')renderLoan(); if(p==='holi')renderHoli();
   if(p==='detail'){renderDetailSelector();renderDetail();} if(p==='shift')renderShifts(); if(p==='today')renderToday(); if(p==='settings')renderOrg();
   window.scrollTo(0,0);
 }
 function closeModal(id){ document.getElementById(id).classList.remove('show'); }
-function renderAll(){ renderEmp(); renderPayroll(); renderDetailSelector(); renderDetail(); if(typeof renderAdv==='function') renderAdv(); if(typeof renderDeposit==='function') renderDeposit(); if(typeof renderMou==='function') renderMou(); if(typeof renderToday==='function') renderToday(); }
+function renderAll(){ renderEmp(); renderPayroll(); renderDetailSelector(); renderDetail(); if(typeof renderAdv==='function') renderAdv(); if(typeof renderDeposit==='function') renderDeposit(); if(typeof renderMou==='function') renderMou(); if(typeof renderLoan==='function') renderLoan(); if(typeof renderToday==='function') renderToday(); }
 
 /* ================= IMPORT ================= */
 const drop = document.getElementById('drop');
@@ -1503,7 +1575,7 @@ function allPeriods(){
 }
 function refreshPeriodSelectors(){
   const ps = allPeriods();
-  for(const id of ['periodSel','adjPeriod','detailPeriodSel','calPeriodSel','advPeriodSel','depPeriodSel','mouPeriodSel']){
+  for(const id of ['periodSel','adjPeriod','detailPeriodSel','calPeriodSel','advPeriodSel','depPeriodSel','mouPeriodSel','loanPeriodSel']){
     const sel = document.getElementById(id); const cur = sel.value;
     sel.innerHTML = ps.map(p=>`<option value="${p}">${periodLabel(p)}</option>`).join('') || '<option value="">– ยังไม่มีข้อมูล –</option>';
     if(ps.includes(cur)) sel.value = cur;
@@ -1635,11 +1707,12 @@ function calcPay(emp, period){
   const advSum = advs.reduce((a,x)=>a+ +x.amount,0);
   const dep = depositCalc(emp, period);
   const mou = mouCalc(emp, period);
-  const deduSum = dedu.reduce((a,x)=>a+ +x.amount,0) + missFine + lateAuto + singleFine + advSum + mustFine + dep.ded + mou.ded;
+  const eloan = loanCalc(emp, period);   // เงินยืมทั่วไป: หักท้ายเดือนเฉพาะส่วน dedPay (ส่วน dedMid เก็บไปแล้วตอนเบิก)
+  const deduSum = dedu.reduce((a,x)=>a+ +x.amount,0) + missFine + lateAuto + singleFine + advSum + mustFine + dep.ded + mou.ded + eloan.dedPay;
   return { days, lateCount, singleCount, singleDays, hours, fullHrs, missMin, lateMin, earlyMin, shortMin,
            base, adds, dedu, addSum, deduSum, missFine, lateAuto, singleFine, advs, advSum,
            dRate, holiDays, holiBonus, paidHoli, holiWorked, holiInPeriod, mustViol, mustFine,
-           dep, mou, offDue, offUsed, noOffDays, noOffBonus, wkOffWorked,
+           dep, mou, eloan, offDue, offUsed, noOffDays, noOffBonus, wkOffWorked,
            crossDays, byBranch, dip,
            prorate, partialStart, partialEnd, effStart,
            fineOvs, missFine0, lateAuto0, singleFine0, mustFine0, mustPerDay, mustX,
@@ -1996,6 +2069,216 @@ async function delMouLoan(loanId){
   mouEntries = mouEntries.filter(x=>x.empId!==L.empId);
   renderMou(); renderPayroll(); renderDetail(); toast('ลบแล้ว');
 }
+/* ================= พนักงานยืมเงิน (เงินยืมทั่วไป แยกจาก MOU) =================
+   ผ่อนงวดละ monthly จนครบ amount · เลือกจุดหักได้:
+     deductOn 'mid'     = หักจากยอดโอนตอนเบิกกลางเดือน — ถ้ายอดเบิกไม่พอ ส่วนที่เหลือ
+                          ไปหักตอนจ่ายเงินเดือนให้อัตโนมัติ (เก็บครบเสมอ)
+     deductOn 'payroll' = หักตอนจ่ายเงินเดือนปกติ (ขึ้นในสลิป)
+   override รายงวดในตาราง loan_entries เหมือนระบบ MOU */
+function loanCalc(emp, period){
+  const L = loans.find(x=>x.empId===emp.id);
+  if(!L || !+L.amount) return { loan:L||null, ded:0, dedMid:0, dedPay:0, collected:0, target:0, remain:0, done:true, override:null };
+  const target = +L.amount;
+  const pds = [...new Set((shifts[emp.code]||[]).map(x=>periodOf(x.day)))];
+  if(period && !pds.includes(period)) pds.push(period);
+  const list = pds.filter(p=>!L.startPeriod || p >= L.startPeriod).sort();
+  let collected = +(L.opening||0), ded = 0, override = null;
+  for(const pd of list){
+    if(period && pd > period) break;
+    const ov = loanEntries.find(x=>x.empId===emp.id && x.period===pd);
+    const remain = Math.max(0, target - collected);
+    const hasWork = (shifts[emp.code]||[]).some(x=>periodOf(x.day)===pd);
+    const d = ov ? Math.max(0, +ov.amount) : (hasWork ? Math.min(+(L.monthly||0), remain) : 0);
+    if(pd === period){ ded = d; override = ov||null; }
+    collected += d;
+  }
+  let dedMid = 0;
+  if(L.deductOn === 'mid' && ded > 0){
+    const advTaken = advances.filter(a=>a.empId===emp.id && a.period===period)
+                             .reduce((s,x)=>s+ +x.amount, 0);
+    dedMid = Math.min(ded, advTaken);   // เก็บจากยอดเบิกก่อน ที่เหลือ (dedPay) ไปหักท้ายเดือน
+  }
+  return { loan:L, ded, dedMid, dedPay: ded - dedMid, override, collected, target,
+           remain: Math.max(0, target - collected), done: collected >= target };
+}
+async function updLoanField(loanId, field, val){
+  if(!loanReady) return toast('❌ ต้องรัน jj_loans.sql ใน Supabase ก่อน');
+  const { error } = await db.from('loans').update({ [field]: val }).eq('id', loanId);
+  if(error) return dbErr(error,'บันทึกเงินยืม');
+  const L = loans.find(x=>x.id===loanId);
+  const map = { amount:'amount', monthly:'monthly', deduct_on:'deductOn',
+                start_period:'startPeriod', opening:'opening', note:'note' };
+  if(L && map[field]) L[map[field]] = ['deduct_on','start_period','note'].includes(field) ? val : +val;
+  renderLoan(); renderAdv(); renderPayroll(); renderDetail(); toast('บันทึกแล้ว');
+}
+async function setLoanOverride(empId, period, val){
+  if(!loanReady) return toast('❌ ต้องรัน jj_loans.sql ใน Supabase ก่อน');
+  const cur = loanEntries.find(x=>x.empId===empId && x.period===period);
+  const v = String(val).trim();
+  if(v === ''){
+    if(cur){
+      const { error } = await db.from('loan_entries').delete().eq('id', cur.id);
+      if(error) return dbErr(error,'ลบรายการเงินยืม');
+      loanEntries = loanEntries.filter(x=>x.id!==cur.id);
+      toast('↺ กลับเป็นหักอัตโนมัติ');
+    }
+  } else {
+    const amount = Math.max(0, Math.floor(+v)||0);
+    const { data, error } = await db.from('loan_entries')
+      .upsert({ employee_id:empId, period, amount }, { onConflict:'employee_id,period' })
+      .select().single();
+    if(error) return dbErr(error,'บันทึกเงินยืม');
+    if(cur){ cur.amount = amount; } else loanEntries.push(fromDbLoanE(data));
+    toast(amount? 'ผ่อนงวดนี้ '+THB(amount)+' บาท' : 'งดหักงวดนี้');
+  }
+  renderLoan(); renderAdv(); renderPayroll(); renderDetail();
+}
+function editLoan(empId, period){
+  const e = employees.find(x=>x.id===empId);
+  const lo = loanCalc(e, period);
+  if(!lo.loan) return toast('❌ คนนี้ไม่มีรายการยืมเงิน');
+  const v = prompt('💳 ผ่อนเงินยืมงวดนี้ — '+e.nick+
+    '\nปกติผ่อน '+THB(lo.loan.monthly)+'/งวด · หักตอน'+(lo.loan.deductOn==='mid'?'เบิกกลางเดือน':'จ่ายเงินเดือน')+
+    '\nผ่อนแล้ว '+THB(lo.collected - lo.ded)+' / ยอดยืม '+THB(lo.target)+
+    '\n\nใส่จำนวนบาท · 0 = งดหักงวดนี้ · เว้นว่างแล้วตกลง = กลับเป็นหักอัตโนมัติ',
+    lo.override ? lo.ded : '');
+  if(v === null) return;
+  setLoanOverride(empId, period, v);
+}
+let loanEmpPick = null;
+function fillLoanEmp(q){
+  q = (q||'').toLowerCase();
+  const free = employees.filter(e=>e.active && !loans.find(l=>l.empId===e.id) && empMatch(e, q))
+    .sort((a,b)=>(a.branch||'').localeCompare(b.branch||'') || a.nick.localeCompare(b.nick,'th'));
+  if(!free.find(x=>x.id===loanEmpPick)) loanEmpPick = free.length? free[0].id : null;
+  document.getElementById('loanEmpList').innerHTML = free.length
+    ? free.map(e=>`<div class="opt${e.id===loanEmpPick?' sel':''}" onclick="pickLoanEmp(${e.id})">
+        <b>${e.nick}</b> ${e.full?'<span class="muted">'+e.full+'</span>':''}
+        <span class="muted" style="float:right">${(BR[e.branch]||{}).t||'–'}${e.dept?' · '+e.dept:''}</span></div>`).join('')
+    : '<div class="opt muted">– ไม่พบพนักงาน –</div>';
+}
+function pickLoanEmp(id){ loanEmpPick = id; fillLoanEmp(document.getElementById('loanEmpSearch').value); }
+function openLoanForm(){
+  if(!loanReady) return toast('❌ ต้องรัน jj_loans.sql ใน Supabase ก่อน');
+  const free = employees.filter(e=>e.active && !loans.find(l=>l.empId===e.id));
+  if(!free.length) return toast('❌ พนักงานทุกคนมีรายการยืมเงินแล้ว');
+  document.getElementById('loanEmpSearch').value = '';
+  loanEmpPick = null;
+  fillLoanEmp('');
+  const ps = allPeriods();
+  const cur = (document.getElementById('loanPeriodSel')||{}).value || ps[0] || periodOf(localYMD(new Date()));
+  document.getElementById('loanStart').innerHTML =
+    [...new Set([cur, ...ps])].sort().reverse().map(p=>`<option value="${p}" ${p===cur?'selected':''}>${periodLabel(p)}</option>`).join('');
+  document.getElementById('loanAmount').value = '';
+  document.getElementById('loanMonthly').value = 1000;
+  document.getElementById('loanOn').value = 'payroll';
+  document.getElementById('loanOpening').value = 0;
+  document.getElementById('loanDate').value = localYMD(new Date());
+  document.getElementById('loanNote').value = '';
+  document.getElementById('loanBg').classList.add('show');
+}
+async function saveLoan(){
+  const empId = +loanEmpPick;
+  const amount = +document.getElementById('loanAmount').value;
+  const monthly = +document.getElementById('loanMonthly').value;
+  if(!empId) return toast('❌ เลือกพนักงาน');
+  if(!amount || amount<=0) return toast('❌ ใส่ยอดเงินที่ยืม');
+  if(!monthly || monthly<=0) return toast('❌ ใส่ยอดผ่อนต่องวด');
+  const row = { employee_id:empId, amount, monthly,
+    deduct_on:document.getElementById('loanOn').value,
+    start_period:document.getElementById('loanStart').value||'',
+    opening:+document.getElementById('loanOpening').value||0,
+    loan_date:document.getElementById('loanDate').value||null,
+    note:document.getElementById('loanNote').value.trim() };
+  const { data, error } = await db.from('loans').insert(row).select().single();
+  if(error) return dbErr(error,'บันทึกเงินยืม');
+  loans.push(fromDbLoan(data));
+  closeModal('loanBg'); renderLoan(); renderAdv(); renderPayroll(); renderDetail();
+  toast('บันทึกยืมเงิน '+THB(amount)+' บาทแล้ว');
+}
+async function delLoan(loanId){
+  const L = loans.find(x=>x.id===loanId); if(!L) return;
+  const e = employees.find(x=>x.id===L.empId)||{};
+  if(!confirm('ลบรายการยืมเงินของ "'+(e.nick||'?')+'" ?\n(ประวัติการแก้หักรายงวดของคนนี้จะถูกลบด้วย ยอดหักในเงินเดือนย้อนหลังจะหายไป)')) return;
+  let r = await db.from('loan_entries').delete().eq('employee_id', L.empId); if(r.error) return dbErr(r.error,'ลบเงินยืม');
+  r = await db.from('loans').delete().eq('id', loanId); if(r.error) return dbErr(r.error,'ลบเงินยืม');
+  loans = loans.filter(x=>x.id!==loanId);
+  loanEntries = loanEntries.filter(x=>x.empId!==L.empId);
+  renderLoan(); renderAdv(); renderPayroll(); renderDetail(); toast('ลบแล้ว');
+}
+function renderLoan(){
+  const tbl = document.getElementById('loanTable'); if(!tbl) return;
+  const period = (document.getElementById('loanPeriodSel')||{}).value || allPeriods()[0] || '';
+  const bf = document.getElementById('loanBranch').value;
+  const sf = document.getElementById('loanStatus').value;
+  const q  = (document.getElementById('loanSearch').value||'').toLowerCase();
+  document.getElementById('loanInfo').innerHTML = loanReady
+    ? `เงินยืมทั่วไปของพนักงาน (แยกจากเงินยืม MOU) · เลือกได้ว่าผ่อนงวดละเท่าไร และ<b>หักตอนไหน</b>:
+       💵 <b>เบิกกลางเดือน</b> = หักออกจากยอดโอนวันที่ 15 (ถ้ายอดเบิกไม่พอ ส่วนที่เหลือไปหักท้ายเดือนให้เอง) ·
+       🧾 <b>จ่ายเงินเดือน</b> = หักในสลิปสิ้นงวด · แก้ยอดเฉพาะงวดได้ที่ช่อง "ผ่อนงวดนี้"`
+    : '<b style="color:var(--red)">⚠️ ยังไม่ได้รัน jj_loans.sql ใน Supabase SQL Editor — รันก่อนถึงจะบันทึกได้</b>';
+
+  const rows = loans.map(L=>{
+    const e = employees.find(x=>x.id===L.empId);
+    return e? { L, e, lo: loanCalc(e, period) } : null;
+  }).filter(Boolean)
+    .filter(({e})=> (!bf||e.branch===bf) && empMatch(e,q))
+    .filter(({lo})=> !sf || (sf==='paying' && !lo.done) || (sf==='done' && lo.done))
+    .sort((a,b)=> (a.e.branch||'').localeCompare(b.e.branch||'') || a.e.nick.localeCompare(b.e.nick,'th'));
+
+  const nPay = rows.filter(x=>!x.lo.done).length;
+  const sumDed = rows.reduce((a,x)=>a+x.lo.ded,0);
+  const sumRemain = rows.reduce((a,x)=>a+x.lo.remain,0);
+  document.getElementById('loanStats').innerHTML = `
+    <div class="stat"><div class="v">${rows.length}</div><div class="l">รายการยืมเงิน</div></div>
+    <div class="stat"><div class="v" style="color:${nPay?'var(--amber)':'inherit'}">${nPay}</div><div class="l">กำลังผ่อน</div></div>
+    <div class="stat"><div class="v" style="color:var(--green)">${rows.length-nPay}</div><div class="l">ผ่อนครบแล้ว</div></div>
+    <div class="stat"><div class="v" style="color:var(--red)">${THB(sumDed)} ฿</div><div class="l">ผ่อนงวดนี้รวม</div></div>
+    <div class="stat"><div class="v">${THB(sumRemain)} ฿</div><div class="l">ค้างผ่อนรวม</div></div>`;
+
+  tbl.className = 'sticky-act';
+  tbl.innerHTML = `<thead><tr>
+      <th>พนักงาน</th><th>สาขา</th>
+      <th class="num">ยอดยืม</th><th class="num">ผ่อน/งวด</th><th>หักตอน</th>
+      <th>เริ่มหักงวด</th><th class="num">ผ่อนมาก่อน</th><th class="num">ผ่อนงวดนี้</th>
+      <th class="num">ผ่อนแล้ว</th><th class="num">คงเหลือ</th><th>สถานะ</th><th></th>
+    </tr></thead><tbody>` +
+    (rows.length? rows.map(({L,e,lo})=>{
+      const ps = [...new Set([L.startPeriod, ...allPeriods()])].filter(Boolean).sort().reverse();
+      return `<tr${lo.done?' style="background:#f3fbf5"':''}>
+      <td class="clickable" onclick="openDetail(${e.id})"><b style="color:var(--ember-deep)">${e.nick}</b> <span class="muted">${e.full||''}</span>
+        ${L.loanDate?'<br><span class="muted" style="font-size:11px">ยืมเมื่อ '+dayLabel(L.loanDate)+'</span>':''}
+        ${L.note?'<br><span class="muted" style="font-size:11px">📝 '+L.note+'</span>':''}</td>
+      <td>${branchChip(e)}</td>
+      <td class="num"><input type="number" value="${L.amount}" min="0" step="500" style="width:100px;text-align:right"
+        onchange="updLoanField(${L.id},'amount',+this.value||0)"></td>
+      <td class="num"><input type="number" value="${L.monthly}" min="0" step="100" style="width:90px;text-align:right"
+        onchange="updLoanField(${L.id},'monthly',+this.value||0)"></td>
+      <td><select style="min-width:140px" onchange="updLoanField(${L.id},'deduct_on',this.value)">
+        <option value="mid" ${L.deductOn==='mid'?'selected':''}>💵 เบิกกลางเดือน</option>
+        <option value="payroll" ${L.deductOn!=='mid'?'selected':''}>🧾 จ่ายเงินเดือน</option>
+      </select></td>
+      <td><select style="min-width:110px" onchange="updLoanField(${L.id},'start_period',this.value)">
+        ${ps.map(p=>`<option value="${p}" ${p===L.startPeriod?'selected':''}>${periodLabel(p)}</option>`).join('')}
+      </select></td>
+      <td class="num"><input type="number" value="${L.opening}" min="0" step="100" style="width:100px;text-align:right"
+        title="ยอดที่ผ่อนไปก่อนเริ่มใช้ระบบ" onchange="updLoanField(${L.id},'opening',+this.value||0)"></td>
+      <td class="num"><input type="number" value="${lo.ded}" min="0" step="100"
+        style="width:100px;text-align:right;font-weight:700${lo.override?';border-color:var(--ember)':''}"
+        title="${lo.override?'แก้เองงวดนี้ — ลบค่าแล้ว Enter = กลับอัตโนมัติ':'หักอัตโนมัติ — พิมพ์เพื่อแก้เฉพาะงวดนี้'}"
+        onchange="setLoanOverride(${e.id},'${period}',this.value)">
+        ${lo.override?'<span class="chip chip-amber">✎</span>':''}
+        ${lo.dedMid?'<br><span class="chip chip-blue" title="หักจากยอดโอนตอนเบิกกลางเดือน">จากเบิก '+THB(lo.dedMid)+'</span>':''}
+        ${lo.dedPay&&lo.loan.deductOn==='mid'?'<br><span class="chip chip-amber" title="ยอดเบิกไม่พอ ส่วนนี้ไปหักตอนจ่ายเงินเดือน">ท้ายเดือน '+THB(lo.dedPay)+'</span>':''}</td>
+      <td class="num"><b>${THB(lo.collected)}</b> <span class="muted">/ ${THB(lo.target)}</span></td>
+      <td class="num" style="color:${lo.remain?'var(--red)':'var(--green)'};font-weight:${lo.remain?700:400}">${lo.remain?THB(lo.remain):'–'}</td>
+      <td>${lo.done? '<span class="chip chip-green">✓ ผ่อนครบแล้ว</span>'
+                   : '<span class="chip chip-amber">เหลืออีก ~'+Math.ceil(lo.remain/Math.max(1,L.monthly))+' งวด</span>'}</td>
+      <td><div class="act"><button class="btn btn-red" title="ลบรายการ" onclick="delLoan(${L.id})">🗑</button></div></td>
+    </tr>`;}).join('')
+    : '<tr><td colspan="12"><div class="empty">ยังไม่มีรายการ — กด ＋ บันทึกยืมเงิน</div></td></tr>') + '</tbody>';
+}
+
 /* ---- สมุดยืม-คืนเอกสาร ---- */
 let borrowEmpPick = null;
 function fillBorrowEmp(q){
@@ -2751,6 +3034,9 @@ function renderDetail(){
             : p.mou && p.mou.loan && !p.mou.done? `<tr><td class="muted">เงินยืม MOU — ไม่หักงวดนี้${p.mou.override?' (แก้เอง)':''} · ผ่อนแล้ว ${THB(p.mou.collected)}/${THB(p.mou.target)} <button class="btn btn-light btn-sm" style="padding:1px 7px" onclick="editMou(${e.id},'${period}')">✎</button></td><td class="num muted">–</td></tr>`:''}
           ${p.dep && p.dep.target && p.dep.ded? `<tr><td style="color:var(--red)">－ เงินประกัน${p.dep.override?' (แก้เอง)':''} · สะสม ${THB(p.dep.collected)}/${THB(p.dep.target)}${p.dep.done?' ✓ ครบ':''} <button class="btn btn-light btn-sm" style="padding:1px 7px" onclick="editDeposit(${e.id},'${period}')">✎</button></td><td class="num" style="color:var(--red)">-${THB2(p.dep.ded)}</td></tr>`
             : p.dep && p.dep.target && !p.dep.done? `<tr><td class="muted">เงินประกัน — ไม่หักงวดนี้${p.dep.override?' (แก้เอง)':''} · สะสม ${THB(p.dep.collected)}/${THB(p.dep.target)} <button class="btn btn-light btn-sm" style="padding:1px 7px" onclick="editDeposit(${e.id},'${period}')">✎</button></td><td class="num muted">–</td></tr>`:''}
+          ${p.eloan && p.eloan.loan && p.eloan.dedPay? `<tr><td style="color:var(--red)">－ ผ่อนเงินยืม${p.eloan.override?' (แก้เอง)':''}${p.eloan.dedMid?' · อีก '+THB(p.eloan.dedMid)+' หักจากเบิกแล้ว':''} · ผ่อนแล้ว ${THB(p.eloan.collected)}/${THB(p.eloan.target)}${p.eloan.done?' ✓ ครบ':''} <button class="btn btn-light btn-sm" style="padding:1px 7px" onclick="editLoan(${e.id},'${period}')">✎</button></td><td class="num" style="color:var(--red)">-${THB2(p.eloan.dedPay)}</td></tr>`
+            : p.eloan && p.eloan.loan && p.eloan.dedMid? `<tr><td class="muted">ผ่อนเงินยืม ${THB(p.eloan.dedMid)} — หักจากเบิกกลางเดือนแล้ว${p.eloan.override?' (แก้เอง)':''} · ผ่อนแล้ว ${THB(p.eloan.collected)}/${THB(p.eloan.target)}${p.eloan.done?' ✓ ครบ':''} <button class="btn btn-light btn-sm" style="padding:1px 7px" onclick="editLoan(${e.id},'${period}')">✎</button></td><td class="num muted">–</td></tr>`
+            : p.eloan && p.eloan.loan && !p.eloan.done? `<tr><td class="muted">เงินยืม — ไม่หักงวดนี้${p.eloan.override?' (แก้เอง)':''} · ผ่อนแล้ว ${THB(p.eloan.collected)}/${THB(p.eloan.target)} <button class="btn btn-light btn-sm" style="padding:1px 7px" onclick="editLoan(${e.id},'${period}')">✎</button></td><td class="num muted">–</td></tr>`:''}
           ${p.dedu.map(a=>`<tr><td style="color:var(--red)">－ ${a.reason} <button class="btn btn-red btn-sm" style="padding:1px 7px" onclick="delAdj(${a.id})">✕</button></td><td class="num" style="color:var(--red)">-${THB2(+a.amount)}</td></tr>`).join('')}
           <tr><td style="font-weight:700">สุทธิ</td><td class="num" style="font-weight:700;color:var(--green)">${THB2(p.net)}</td></tr>
         </tbody></table></div>
@@ -3038,6 +3324,7 @@ function buildSlip(e, period, compact){
   p.advs.forEach(a=>dedRows.push([`เบิกล่วงหน้า ${dayLabel(a.date)}${a.note?' — '+a.note:''}`, +a.amount]));
   if(p.dep && p.dep.ded) dedRows.push([`เงินประกัน (สะสม ${THB(p.dep.collected)} / ${THB(p.dep.target)}${p.dep.done?' — ครบแล้ว':''})`, p.dep.ded]);
   if(p.mou && p.mou.ded) dedRows.push([`ผ่อนคืนเงินยืม MOU (ผ่อนแล้ว ${THB(p.mou.collected)} / ${THB(p.mou.target)}${p.mou.done?' — ครบแล้ว':''})`, p.mou.ded]);
+  if(p.eloan && p.eloan.dedPay) dedRows.push([`ผ่อนคืนเงินยืม (ผ่อนแล้ว ${THB(p.eloan.collected)} / ${THB(p.eloan.target)}${p.eloan.done?' — ครบแล้ว':''}${p.eloan.dedMid?' · อีก '+THB(p.eloan.dedMid)+' หักจากเบิกกลางเดือนแล้ว':''})`, p.eloan.dedPay]);
   p.dedu.forEach(a=>dedRows.push([a.reason, +a.amount]));
 
   return `
@@ -3384,8 +3671,12 @@ function renderAdv(){
     <th class="num">ค่าแรงที่ทำมา</th><th class="num">${Math.round(settings.advRatio*100)}%</th>
     <th class="num">เพดานเบิก</th><th class="num">เบิกแล้ว</th><th class="num" style="min-width:150px">บันทึกเบิก (พิมพ์ได้เลย)</th><th></th>
   </tr></thead><tbody>` +
-  (list.length? list.map(({e,q})=>`<tr>
-    <td class="clickable" onclick="openDetail(${e.id})"><b style="color:var(--ember-deep)">${e.nick}</b> <span class="muted">${e.full||''}</span></td>
+  (list.length? list.map(({e,q})=>{
+    const lo = loanCalc(e, period);
+    const loChip = lo.loan && !lo.done && lo.loan.deductOn==='mid' && lo.ded
+      ? '<br><span class="chip chip-amber" title="โอนจริงตอนเบิก = ยอดเบิก − ผ่อนยืม (ดูหน้าพนักงานยืมเงิน)">💳 ผ่อนยืมงวดนี้ '+THB(lo.ded)+'</span>' : '';
+    return `<tr>
+    <td class="clickable" onclick="openDetail(${e.id})"><b style="color:var(--ember-deep)">${e.nick}</b> <span class="muted">${e.full||''}</span>${loChip}</td>
     <td>${branchChip(e)}</td>
     <td class="num">${q.days}</td>
     <td class="num">${THB(q.earned)}</td>
@@ -3405,7 +3696,7 @@ function renderAdv(){
     <td><div class="act">
       ${q.taken>0? `<button class="btn btn-light" title="ดู/แก้รายการที่เบิกแล้ว" onclick="openAdvForm(${e.id},'${period}')">✎</button>`:''}
       <button class="btn btn-light" title="เบิกแบบระบุวันที่/หมายเหตุเอง (กรณีพิเศษ)" onclick="openAdvForm(${e.id},'${period}')">＋</button>
-    </div></td></tr>`).join('')
+    </div></td></tr>`;}).join('')
   : '<tr><td colspan="9"><div class="empty">ยังไม่มีใครมีวันทำงานในรอบนี้</div></td></tr>') + '</tbody>';
 }
 function openAdvForm(empId, period){
@@ -4072,12 +4363,18 @@ function exportKbizAdv(branch){
   const effD = new Date(+m[3], +m[2]-1, +m[1]);
   if(!(effD > new Date())) return toast('❌ ต้องเป็นวันพรุ่งนี้เป็นต้นไป (ธนาคารไม่รับวันนี้/ย้อนหลัง)');
   const byAcc = new Map();   // บัญชีร่วม รวมยอดเป็นแถวเดียว กันธนาคารตีกลับ
-  const skipped = [];
+  const skipped = [], loanCut = [];
   for(const {e, taken} of list){
+    // หักผ่อนเงินยืม (โหมดหักตอนเบิกกลางเดือน) ออกจากยอดโอน
+    const lo = loanCalc(e, period);
+    const mid = (lo.loan && lo.loan.deductOn==='mid') ? lo.dedMid : 0;
+    const net = taken - mid;
+    if(mid > 0) loanCut.push(e.nick+' เบิก '+THB(taken)+' − ผ่อนยืม '+THB(mid)+' = โอน '+THB(net));
+    if(net <= 0){ if(!mid) skipped.push(e.nick+' — ยอดโอนเป็น 0'); continue; }
     const r = kbizRow(e);
-    if(r.skip){ skipped.push(e.nick+' '+THB(taken)+' บ. — '+r.skip); continue; }
-    if(byAcc.has(r.acc)){ const x = byAcc.get(r.acc); x.amount += taken; x.names.push(e.nick); }
-    else byAcc.set(r.acc, { name:r.name, amount:taken, names:[e.nick] });
+    if(r.skip){ skipped.push(e.nick+' '+THB(net)+' บ. — '+r.skip); continue; }
+    if(byAcc.has(r.acc)){ const x = byAcc.get(r.acc); x.amount += net; x.names.push(e.nick); }
+    else byAcc.set(r.acc, { name:r.name, amount:net, names:[e.nick] });
   }
   if(!byAcc.size){
     return alert('❌ ไม่มีรายการที่โอนผ่าน K BIZ ได้เลย\n\n• '+skipped.join('\n• '));
@@ -4095,6 +4392,7 @@ function exportKbizAdv(branch){
   alert('✅ สร้างไฟล์โอนเบิกกลางเดือน '+periodLabel(period)+' ('+kbizBrLabel(branch)+')\n'+
     rows.length+' รายการ · รวม '+THB(total)+' บาท · เงินเข้า '+eff+
     (joint.length? '\n\n🔗 '+joint.join('\n'):'')+
+    (loanCut.length? '\n\n💳 หักผ่อนเงินยืมจากยอดโอน '+loanCut.length+' คน:\n• '+loanCut.join('\n• '):'')+
     (skipped.length? '\n\n⚠️ ไม่อยู่ในไฟล์ '+skipped.length+' คน (ต้องจ่ายเอง):\n• '+skipped.join('\n• '):''));
 }
 
@@ -4189,6 +4487,14 @@ function startRealtime(){
     .on('postgres_changes', { event:'*', schema:'public', table:'mou_entries' }, async ()=>{
       try{ const { data } = await db.from('mou_entries').select('*');
         if(data){ mouEntries = data.map(fromDbMouE); rtQueue++; scheduleRtRefresh(); } }catch(_){}
+    })
+    .on('postgres_changes', { event:'*', schema:'public', table:'loans' }, async ()=>{
+      try{ const { data } = await db.from('loans').select('*');
+        if(data){ loans = data.map(fromDbLoan); rtQueue++; scheduleRtRefresh(); } }catch(_){}
+    })
+    .on('postgres_changes', { event:'*', schema:'public', table:'loan_entries' }, async ()=>{
+      try{ const { data } = await db.from('loan_entries').select('*');
+        if(data){ loanEntries = data.map(fromDbLoanE); rtQueue++; scheduleRtRefresh(); } }catch(_){}
     })
     .on('postgres_changes', { event:'*', schema:'public', table:'doc_borrows' }, async ()=>{
       try{ const { data } = await db.from('doc_borrows').select('*').order('borrow_date',{ascending:false});

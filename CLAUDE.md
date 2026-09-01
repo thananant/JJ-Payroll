@@ -30,6 +30,7 @@
 - **เบี้ยไม่หยุด**: ไม่ใช้สิทธิ์วันหยุด ได้วันละ 400 · **เบี้ยวันหยุดพิเศษ**: มาทำงานวันหยุดพิเศษได้ตัวคูณ (ต้องไม่สาย/ไม่ออกก่อน/ไม่ลืมตอก)
 - **เบิกกลางเดือน**: มีเพดานต่อคน เกินได้แต่ toast เตือน + confirm
 - **เงินประกัน**: เป้า 5,000 หักเดือนละ 500 · **เริ่มหักจริงงวด 2026-08 (ส.ค. 2569)** ผ่าน `payroll_settings.dep_start` — ห้ามคิดย้อนหลัง · override รายงวดในตาราง `deposit_entries` · ครบแล้วหยุดเอง
+- **พนักงานยืมเงิน (เงินยืมทั่วไป)**: หน้า #loan ตาราง `loans` (unique ต่อคน) + `loan_entries` (override รายงวด) flag `loanReady` · เลือกผ่อน/งวด + จุดหัก `deduct_on`: **mid** = หักจากยอดโอนตอนเบิกกลางเดือน (loanCalc คืน dedMid=min(ผ่อน,ยอดเบิก) — ไฟล์โอน K BIZ โอนสุทธิ = เบิก−ผ่อน · ส่วนที่เบิกไม่พอ dedPay ไปหักในสลิปให้เอง) / **payroll** = หักในสลิปทั้งงวด (dedPay) · calcPay ใช้ p.eloan · ✎ แก้รายงวดเหมือน MOU (editLoan)
 - **เงินยืม MOU**: ปกติ 15,000 หักเดือนละ 2,000 พอเหลือ ≤ 3,000 หักหมดงวดสุดท้าย (= 2,000×6 + 3,000) · บริษัทเก็บ Passport+บัตรชมพู คืนเมื่อหักครบเท่านั้น · มีสมุดยืม-คืนเอกสาร (doc_borrows)
 - **รายการหักสำเร็จรูป** (ADJ_PRESETS): แต่งตัวผิดระเบียบ 50 · ไม่ใส่เสื้อพนักงาน 200 · เล่นโทรศัพท์ 100 · ไม่เก็บโทรศัพท์ 100 · อื่นๆ บังคับใส่เหตุผล
 - **พนักงานใหม่**: default รายเดือน 12,000 ทุกช่องทาง (ฟอร์ม/import/worker — เจ้าของสั่ง 2026-08-12) · worker จดวันเริ่มงาน = วันสแกนแรก (fallback ไม่มีคอลัมน์ก็สร้างได้)
@@ -55,9 +56,10 @@
 - `mou_entries` — override หัก MOU รายงวด: unique(employee_id, period)
 - `doc_borrows` — สมุดยืมเอกสาร: doc, borrow_date, return_date, note
 - `fine_entries` — แก้ยอดรายการหักอัตโนมัติรายงวด: employee_id, period, kind(miss/late/single/must), amount, unique(employee_id, period, kind)
+- `loans` — พนักงานยืมเงิน unique ต่อคน: amount, monthly, deduct_on(mid/payroll), start_period, opening, loan_date, note · `loan_entries` — override ผ่อนรายงวด unique(employee_id, period)
 - ทุกตาราง RLS เปิดแบบ allow-all + อยู่ใน publication `supabase_realtime`
 
-## โครงหน้า (hash routing: #today #emp #detail #payroll #cal #adv #dep #mou #shifts #holi #settings)
+## โครงหน้า (hash routing: #today #emp #detail #payroll #cal #adv #loan #dep #mou #shifts #holi #settings)
 
 วันนี้ · พนักงาน · ข้อมูลพนักงาน(รายคน+ประวัติเงินเดือน) · สรุปเงินเดือน · ปฏิทินเข้างาน · เบิกกลางเดือน · เงินประกัน · เอกสาร MOU(+สมุดยืมเอกสาร) · กะการทำงาน · วันหยุดพิเศษ(ปุ่ม＋เพิ่มปี) · ตั้งค่า
 - หน้า cal/today/mou/dep เป็น full-width (`main:has(#page-X.active){max-width:none}` + ใน go())
