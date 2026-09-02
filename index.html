@@ -2259,7 +2259,9 @@ function tipCalc(emp, period){
   if(!t || !(+t.amount > 0)) return zero;
   if(t.members && t.members.length){
     // โหมดเลือกคนเอง: แจกเฉพาะคนที่ถูกติ๊ก (คนพ้นสภาพตัดออกจากทั้งส่วนแบ่งและตัวหาร)
-    const m = t.members.filter(id => { const x = employees.find(e=>e.id===id); return x && x.active; });
+    // คนที่ย้ายสาขาไปแล้วก็ตัดออกเหมือนกัน (ไม่งั้นถูกนับเป็นตัวหารทั้งที่รับจากสาขานี้ไม่ได้)
+    const m = t.members.filter(id => { const x = employees.find(e=>e.id===id);
+      return x && x.active && (x.branch||'')===t.branch; });
     const n = m.length;
     return { pool:+t.amount, n, picked:true,
              share: (n && m.includes(emp.id)) ? Math.floor(+t.amount / n) : 0 };
@@ -2279,37 +2281,55 @@ function openTips(){
   if(!period) return toast('❌ ยังไม่มีงวดให้ใส่ทิป');
   document.getElementById('tipBg').dataset.period = period;
   document.getElementById('tipPeriodLb').textContent = periodLabel(period);
+  let goneN = 0;
   for(const b of Object.keys(BR)){
     const t = tips.find(x=>x.period===period && x.branch===b);
     const el = document.getElementById('tip_'+b);
     if(el) el.value = (t && +t.amount) ? +t.amount : '';
     tipRenderPick(b, period, t);
+    goneN += tipInactiveOf(b, period, t).length;
   }
   tipPreview();
   document.getElementById('tipBg').classList.add('show');
+  if(goneN) toast('⚠️ มีคนพ้นสภาพในรายชื่อ '+goneN+' คน — ไม่ได้รับทิป (ดูในรายชื่อ 👥 เลือกคน)');
+}
+/* คนพ้นสภาพที่ยังโผล่ในรายชื่อ = มีวันทำงานในงวด หรือเคยถูกเลือกไว้ — โชว์เป็นแถวเตือน ติ๊กไม่ได้ (ไม่ได้ทิป ไม่นับตัวหาร) */
+function tipInactiveOf(b, period, t){
+  const members = new Set((t && t.members) || []);
+  return employees.filter(x=>!x.active && (x.branch||'')===b &&
+    (empShiftsInPeriod(x, period).length > 0 || members.has(x.id)));
 }
 /* รายชื่อติ๊กเลือกคนต่อสาขา — ค่าเริ่มต้นติ๊กตามรายชื่ออัตโนมัติ หรือตามที่เคยเลือกไว้ */
 function tipRenderPick(b, period, t){
   const box = document.getElementById('tipPick_'+b); if(!box) return;
   box.hidden = true;
-  const sel = (t && t.members && t.members.length) ? new Set(t.members)
-            : new Set(tipEligibleIds(period, b));
-  const list = employees.filter(x=>x.active && (x.branch||'')===b)
-    .sort((a,z)=> (empShiftsInPeriod(z,period).length?1:0)-(empShiftsInPeriod(a,period).length?1:0)
-               || a.nick.localeCompare(z.nick,'th'));
-  box.innerHTML = !list.length ? '<div class="muted" style="padding:10px">ไม่มีพนักงานในสาขานี้</div>' :
-    `<div style="display:flex;gap:6px;padding:7px 10px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--card,#fff)">
-       <button class="btn btn-light btn-sm" onclick="tipPickAll('${b}',true)">✓ เลือกทั้งหมด</button>
-       <button class="btn btn-light btn-sm" onclick="tipPickAll('${b}',false)">✕ ล้างทั้งหมด</button>
-     </div>` +
-    list.map(x=>{
-      const days = empShiftsInPeriod(x, period).length;
-      return `<label style="display:flex;align-items:center;gap:9px;padding:7px 10px;margin:0;border-bottom:1px solid var(--line);font-weight:400;cursor:pointer">
+  const autoIds = tipEligibleIds(period, b);
+  box.dataset.auto = autoIds.join(',');   // ชุดอัตโนมัติ "ตอนที่แสดง" — saveTips เทียบกับชุดนี้ (กัน realtime เปลี่ยนระหว่างเปิด)
+  const sel = (t && t.members && t.members.length) ? new Set(t.members) : new Set(autoIds);
+  const byName = (a,z)=> (empShiftsInPeriod(z,period).length?1:0)-(empShiftsInPeriod(a,period).length?1:0)
+                      || a.nick.localeCompare(z.nick,'th');
+  const list = employees.filter(x=>x.active && (x.branch||'')===b).sort(byName);
+  const gone = tipInactiveOf(b, period, t).sort(byName);
+  const row = (x, days) => `<label style="display:flex;align-items:center;gap:9px;padding:7px 10px;margin:0;border-bottom:1px solid var(--line);font-weight:400;cursor:pointer">
         <input type="checkbox" data-tipck="${b}" value="${x.id}" ${sel.has(x.id)?'checked':''} onchange="tipPreview()" style="width:18px;height:18px;margin:0">
         <span style="flex:1;min-width:0"><b>${x.nick}</b> <span class="muted" style="font-size:12px">${x.full||''}</span></span>
         <span class="muted" style="font-size:12px;white-space:nowrap">${days? days+' วัน' : '<b style="color:var(--red)">ไม่มีวันทำงาน</b>'}</span>
       </label>`;
-    }).join('');
+  const goneRow = (x, days) => `<label style="display:flex;align-items:center;gap:9px;padding:7px 10px;margin:0;border-bottom:1px solid var(--line);font-weight:400;background:#fff5f5;opacity:.75;cursor:not-allowed" title="พ้นสภาพแล้ว — ไม่ได้ทิป และไม่นับเป็นตัวหาร">
+        <input type="checkbox" data-tipgone="${b}" disabled style="width:18px;height:18px;margin:0">
+        <span style="flex:1;min-width:0"><b>${x.nick}</b> <span class="muted" style="font-size:12px">${x.full||''}</span> <span class="chip chip-red">🚫 พ้นสภาพ</span></span>
+        <span style="font-size:12px;white-space:nowrap;color:var(--red)">${days? days+' วัน · ':''}ไม่ได้ทิป</span>
+      </label>`;
+  box.innerHTML = (!list.length && !gone.length) ? '<div class="muted" style="padding:10px">ไม่มีพนักงานในสาขานี้</div>' :
+    `<div style="display:flex;gap:6px;padding:7px 10px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--card,#fff)">
+       <button class="btn btn-light btn-sm" onclick="tipPickAll('${b}',true)">✓ เลือกทั้งหมด</button>
+       <button class="btn btn-light btn-sm" onclick="tipPickAll('${b}',false)">✕ ล้างทั้งหมด</button>
+     </div>` +
+    // คนพ้นสภาพขึ้นบนสุด ให้เห็นคำเตือนทันทีโดยไม่ต้องเลื่อน
+    (gone.length ? `<div style="padding:7px 10px;border-bottom:1px solid var(--line);background:#fff5f5;font-size:12.5px;color:var(--red)">
+        ⚠️ <b>พ้นสภาพแล้ว ${gone.length} คน</b> — ไม่ได้ทิป และไม่นับเป็นตัวหาร (ถ้าจะให้ ต้องเปิดสถานะ "ทำงานอยู่" กลับก่อน)
+      </div>` + gone.map(x=>goneRow(x, empShiftsInPeriod(x, period).length)).join('') : '') +
+    list.map(x=>row(x, empShiftsInPeriod(x, period).length)).join('');
 }
 function tipTogglePick(b){
   const box = document.getElementById('tipPick_'+b);
@@ -2326,35 +2346,43 @@ function tipPreview(){
     if(!el || !out) continue;
     const ids = tipCheckedIds(b);
     const total = document.querySelectorAll('input[data-tipck="'+b+'"]').length;
+    const gone = document.querySelectorAll('input[data-tipgone="'+b+'"]').length;
     const btn = document.getElementById('tipPickBtn_'+b);
-    if(btn) btn.textContent = `👥 เลือกคน (${ids.length}/${total})`;
+    if(btn) btn.textContent = `👥 เลือกคน (${ids.length}/${total})` + (gone? ` ⚠️ พ้นสภาพ ${gone}` : '');
+    const warn = gone ? ` <b style="color:var(--red)">· ⚠️ พ้นสภาพ ${gone} คน ไม่ได้ทิป</b>` : '';
     const v = Math.max(0, +el.value||0), n = ids.length;
-    if(!(v>0)){ out.textContent = 'เว้นว่าง = ไม่มีทิปงวดนี้'; continue; }
-    if(!n){ out.innerHTML = '<b style="color:var(--red)">ยังไม่ได้เลือกใครเลย — กด 👥 เลือกคนก่อน</b>'; continue; }
+    if(!(v>0)){ out.innerHTML = 'เว้นว่าง = ไม่มีทิปงวดนี้' + warn; continue; }
+    if(!n){ out.innerHTML = '<b style="color:var(--red)">ยังไม่ได้เลือกใครเลย — กด 👥 เลือกคนก่อน</b>' + warn; continue; }
     const share = Math.floor(v/n), left = Math.round((v - share*n)*100)/100;
     out.innerHTML = `หาร ${n} คน → คนละ <b style="color:var(--green)">${THB(share)}</b> บาท`+
-      (left? ` · เศษ ${THB2(left)} บาท ปัดลง (ไม่แจก)` : '');
+      (left? ` · เศษ ${THB2(left)} บาท ปัดลง (ไม่แจก)` : '') + warn;
   }
 }
 async function saveTips(){
   if(!tipReady) return toast('❌ ต้องรัน jj_tips.sql ใน Supabase ก่อน');
   const period = document.getElementById('tipBg').dataset.period;
   if(!period) return;
-  // กันพลาด: ใส่ยอดแต่ไม่เลือกใครเลย
+  // กันพลาด: ใส่ยอดแต่ไม่เลือกใครเลย (ถ้าสาขานั้นไม่มีใครให้เลือกเลย เช่น พ้นสภาพหมด → ข้ามสาขานั้น ไม่บล็อกสาขาอื่น)
+  const skipped = [];
   for(const b of Object.keys(BR)){
     const el = document.getElementById('tip_'+b); if(!el) continue;
-    if(Math.max(0, +el.value||0) > 0 && !tipCheckedIds(b).length)
-      return toast('❌ '+((BR[b]||{}).t||b)+': ใส่ยอดทิปแต่ยังไม่ได้เลือกใครเลย');
+    if(Math.max(0, +el.value||0) > 0 && !tipCheckedIds(b).length){
+      if(document.querySelectorAll('input[data-tipck="'+b+'"]').length)
+        return toast('❌ '+((BR[b]||{}).t||b)+': ใส่ยอดทิปแต่ยังไม่ได้เลือกใครเลย');
+      skipped.push(b);
+    }
   }
   try{
     for(const b of Object.keys(BR)){
       const el = document.getElementById('tip_'+b); if(!el) continue;
+      if(skipped.includes(b)) continue;
       const v = Math.max(0, +el.value||0);
       const cur = tips.find(x=>x.period===period && x.branch===b);
       if(v > 0){
-        // ติ๊กตรงกับรายชื่ออัตโนมัติ = เก็บว่าง (โหมดอัตโนมัติ ตามคนทำงานจริงเสมอ)
+        // ติ๊กตรงกับรายชื่ออัตโนมัติ (ชุดที่แสดงตอนเปิด) = เก็บว่าง → โหมดอัตโนมัติ ตามคนทำงานจริงเสมอ
         const ids = tipCheckedIds(b);
-        const auto = tipEligibleIds(period, b);
+        const box = document.getElementById('tipPick_'+b);
+        const auto = ((box && box.dataset.auto) || '').split(',').map(Number).filter(Boolean);
         const isAuto = ids.length===auto.length && auto.every(id=>ids.includes(id));
         const member_ids = isAuto ? '' : ids.join(',');
         const { data, error } = await db.from('tips')
@@ -2372,7 +2400,9 @@ async function saveTips(){
   }catch(e){ return dbErr(e,'บันทึกทิป'); }
   closeModal('tipBg');
   renderPayroll(); renderDetail();
-  toast('💰 บันทึกทิปงวด '+periodLabel(period)+' แล้ว');
+  toast(skipped.length
+    ? '⚠️ ข้าม '+skipped.map(b=>(BR[b]||{}).t||b).join(', ')+': ไม่มีใครให้แจก (พ้นสภาพหมด) — สาขาอื่นบันทึกแล้ว'
+    : '💰 บันทึกทิปงวด '+periodLabel(period)+' แล้ว');
 }
 
 /* ================= ประกันสังคม (สปส.) =================
