@@ -922,24 +922,40 @@ tr.grp-dept td{background:#faf7f1;font-size:11.5px;font-weight:600;color:var(--i
   <div class="modal" style="max-width:480px">
     <button class="close" onclick="closeModal('tipBg')">✕</button>
     <h2 class="font-display">💰 ทิปประจำงวด <span id="tipPeriodLb"></span></h2>
-    <p class="muted" style="margin-bottom:14px">ใส่ยอดทิปรวมของแต่ละสาขา ระบบหารเท่ากันให้ทุกคนในสาขาที่มีวันทำงานในงวดนี้และ<b>ยังทำงานอยู่</b> (คนพ้นสภาพไม่ได้และไม่นับเป็นตัวหาร) เศษสตางค์ปัดลง แล้วบวกเข้าเงินเดือน/สลิปอัตโนมัติ · เว้นว่างหรือ 0 = ไม่มีทิป</p>
+    <p class="muted" style="margin-bottom:14px">ใส่ยอดทิปรวมของแต่ละสาขา ระบบหารเท่ากันให้คนที่ถูกเลือก — ค่าเริ่มต้นคือทุกคนในสาขาที่มีวันทำงานในงวดนี้และ<b>ยังทำงานอยู่</b> (คนพ้นสภาพไม่ได้และไม่นับเป็นตัวหาร) · กด <b>👥 เลือกคน</b> เพื่อติ๊กเองว่าใครได้บ้าง · เศษสตางค์ปัดลง แล้วบวกเข้าเงินเดือน/สลิปอัตโนมัติ · เว้นว่างหรือ 0 = ไม่มีทิป</p>
     <div style="display:flex;flex-direction:column;gap:12px">
       <label style="margin:0">ลาดพร้าว (JJLP)
         <input type="number" id="tip_JJLP" min="0" step="any" inputmode="decimal" placeholder="ยอดทิปรวม (บาท)" oninput="tipPreview()">
         <span class="muted" id="tipPrev_JJLP" style="font-size:12.5px"></span>
       </label>
+      <div style="margin:-6px 0 0">
+        <button class="btn btn-light btn-sm" id="tipPickBtn_JJLP" onclick="tipTogglePick('JJLP')">👥 เลือกคน</button>
+        <div id="tipPick_JJLP" hidden style="margin-top:6px;max-height:200px;overflow-y:auto;border:1px solid var(--line);border-radius:10px"></div>
+      </div>
       <label style="margin:0">รัชดา (JJRD)
         <input type="number" id="tip_JJRD" min="0" step="any" inputmode="decimal" placeholder="ยอดทิปรวม (บาท)" oninput="tipPreview()">
         <span class="muted" id="tipPrev_JJRD" style="font-size:12.5px"></span>
       </label>
+      <div style="margin:-6px 0 0">
+        <button class="btn btn-light btn-sm" id="tipPickBtn_JJRD" onclick="tipTogglePick('JJRD')">👥 เลือกคน</button>
+        <div id="tipPick_JJRD" hidden style="margin-top:6px;max-height:200px;overflow-y:auto;border:1px solid var(--line);border-radius:10px"></div>
+      </div>
       <label style="margin:0">ครัวกลาง (JJCK)
         <input type="number" id="tip_JJCK" min="0" step="any" inputmode="decimal" placeholder="ยอดทิปรวม (บาท)" oninput="tipPreview()">
         <span class="muted" id="tipPrev_JJCK" style="font-size:12.5px"></span>
       </label>
+      <div style="margin:-6px 0 0">
+        <button class="btn btn-light btn-sm" id="tipPickBtn_JJCK" onclick="tipTogglePick('JJCK')">👥 เลือกคน</button>
+        <div id="tipPick_JJCK" hidden style="margin-top:6px;max-height:200px;overflow-y:auto;border:1px solid var(--line);border-radius:10px"></div>
+      </div>
       <label style="margin:0">ออฟฟิศ (OFFICE)
         <input type="number" id="tip_OFFICE" min="0" step="any" inputmode="decimal" placeholder="ยอดทิปรวม (บาท)" oninput="tipPreview()">
         <span class="muted" id="tipPrev_OFFICE" style="font-size:12.5px"></span>
       </label>
+      <div style="margin:-6px 0 0">
+        <button class="btn btn-light btn-sm" id="tipPickBtn_OFFICE" onclick="tipTogglePick('OFFICE')">👥 เลือกคน</button>
+        <div id="tipPick_OFFICE" hidden style="margin-top:6px;max-height:200px;overflow-y:auto;border:1px solid var(--line);border-radius:10px"></div>
+      </div>
     </div>
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
       <button class="btn btn-light" onclick="closeModal('tipBg')">ยกเลิก</button>
@@ -1223,7 +1239,8 @@ const fromDbLoan = r => ({ id:r.id, empId:r.employee_id, amount:+r.amount, month
   loanDate:r.loan_date||null, note:r.note||'' });
 const fromDbLoanE = r => ({ id:r.id, empId:r.employee_id, period:r.period, amount:+r.amount });
 const fromDbSsoE = r => ({ id:r.id, empId:r.employee_id, period:r.period, amount:+r.amount });
-const fromDbTip = r => ({ id:r.id, period:r.period, branch:r.branch, amount:+r.amount });
+const fromDbTip = r => ({ id:r.id, period:r.period, branch:r.branch, amount:+r.amount,
+  members: String(r.member_ids||'').split(',').map(Number).filter(Boolean) });
 const fromDbAdj = r => ({ id:r.id, empId:r.employee_id, kind:r.kind, reason:r.reason,
   amount:+r.amount, period:r.period });
 
@@ -2240,9 +2257,21 @@ function tipCalc(emp, period){
   if(!tipReady || !emp.active) return zero;
   const t = tips.find(x=>x.period===period && x.branch===(emp.branch||''));
   if(!t || !(+t.amount > 0)) return zero;
+  if(t.members && t.members.length){
+    // โหมดเลือกคนเอง: แจกเฉพาะคนที่ถูกติ๊ก (คนพ้นสภาพตัดออกจากทั้งส่วนแบ่งและตัวหาร)
+    const m = t.members.filter(id => { const x = employees.find(e=>e.id===id); return x && x.active; });
+    const n = m.length;
+    return { pool:+t.amount, n, picked:true,
+             share: (n && m.includes(emp.id)) ? Math.floor(+t.amount / n) : 0 };
+  }
   const n = tipHeads(period, t.branch);
   const worked = empShiftsInPeriod(emp, period).length > 0;
   return { pool:+t.amount, n, share: (worked && n) ? Math.floor(+t.amount / n) : 0 };
+}
+/* รายชื่ออัตโนมัติ = คนในสาขาที่มีวันทำงานในงวดและยังทำงานอยู่ */
+function tipEligibleIds(period, branch){
+  return employees.filter(x=>x.active && (x.branch||'')===branch &&
+    empShiftsInPeriod(x, period).length > 0).map(x=>x.id);
 }
 function openTips(){
   if(!tipReady) return toast('❌ ต้องรัน jj_tips.sql ใน Supabase ก่อน');
@@ -2254,18 +2283,54 @@ function openTips(){
     const t = tips.find(x=>x.period===period && x.branch===b);
     const el = document.getElementById('tip_'+b);
     if(el) el.value = (t && +t.amount) ? +t.amount : '';
+    tipRenderPick(b, period, t);
   }
   tipPreview();
   document.getElementById('tipBg').classList.add('show');
 }
+/* รายชื่อติ๊กเลือกคนต่อสาขา — ค่าเริ่มต้นติ๊กตามรายชื่ออัตโนมัติ หรือตามที่เคยเลือกไว้ */
+function tipRenderPick(b, period, t){
+  const box = document.getElementById('tipPick_'+b); if(!box) return;
+  box.hidden = true;
+  const sel = (t && t.members && t.members.length) ? new Set(t.members)
+            : new Set(tipEligibleIds(period, b));
+  const list = employees.filter(x=>x.active && (x.branch||'')===b)
+    .sort((a,z)=> (empShiftsInPeriod(z,period).length?1:0)-(empShiftsInPeriod(a,period).length?1:0)
+               || a.nick.localeCompare(z.nick,'th'));
+  box.innerHTML = !list.length ? '<div class="muted" style="padding:10px">ไม่มีพนักงานในสาขานี้</div>' :
+    `<div style="display:flex;gap:6px;padding:7px 10px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--card,#fff)">
+       <button class="btn btn-light btn-sm" onclick="tipPickAll('${b}',true)">✓ เลือกทั้งหมด</button>
+       <button class="btn btn-light btn-sm" onclick="tipPickAll('${b}',false)">✕ ล้างทั้งหมด</button>
+     </div>` +
+    list.map(x=>{
+      const days = empShiftsInPeriod(x, period).length;
+      return `<label style="display:flex;align-items:center;gap:9px;padding:7px 10px;margin:0;border-bottom:1px solid var(--line);font-weight:400;cursor:pointer">
+        <input type="checkbox" data-tipck="${b}" value="${x.id}" ${sel.has(x.id)?'checked':''} onchange="tipPreview()" style="width:18px;height:18px;margin:0">
+        <span style="flex:1;min-width:0"><b>${x.nick}</b> <span class="muted" style="font-size:12px">${x.full||''}</span></span>
+        <span class="muted" style="font-size:12px;white-space:nowrap">${days? days+' วัน' : '<b style="color:var(--red)">ไม่มีวันทำงาน</b>'}</span>
+      </label>`;
+    }).join('');
+}
+function tipTogglePick(b){
+  const box = document.getElementById('tipPick_'+b);
+  if(box) box.hidden = !box.hidden;
+}
+function tipPickAll(b, on){
+  document.querySelectorAll('input[data-tipck="'+b+'"]').forEach(c=>{ c.checked = on; });
+  tipPreview();
+}
+const tipCheckedIds = b => [...document.querySelectorAll('input[data-tipck="'+b+'"]:checked')].map(c=>+c.value);
 function tipPreview(){
-  const period = document.getElementById('tipBg').dataset.period || '';
   for(const b of Object.keys(BR)){
     const el = document.getElementById('tip_'+b), out = document.getElementById('tipPrev_'+b);
     if(!el || !out) continue;
-    const v = Math.max(0, +el.value||0), n = tipHeads(period, b);
+    const ids = tipCheckedIds(b);
+    const total = document.querySelectorAll('input[data-tipck="'+b+'"]').length;
+    const btn = document.getElementById('tipPickBtn_'+b);
+    if(btn) btn.textContent = `👥 เลือกคน (${ids.length}/${total})`;
+    const v = Math.max(0, +el.value||0), n = ids.length;
     if(!(v>0)){ out.textContent = 'เว้นว่าง = ไม่มีทิปงวดนี้'; continue; }
-    if(!n){ out.innerHTML = '<b style="color:var(--red)">ไม่มีคนทำงานในงวดนี้ — จะไม่ถูกแจก</b>'; continue; }
+    if(!n){ out.innerHTML = '<b style="color:var(--red)">ยังไม่ได้เลือกใครเลย — กด 👥 เลือกคนก่อน</b>'; continue; }
     const share = Math.floor(v/n), left = Math.round((v - share*n)*100)/100;
     out.innerHTML = `หาร ${n} คน → คนละ <b style="color:var(--green)">${THB(share)}</b> บาท`+
       (left? ` · เศษ ${THB2(left)} บาท ปัดลง (ไม่แจก)` : '');
@@ -2275,17 +2340,29 @@ async function saveTips(){
   if(!tipReady) return toast('❌ ต้องรัน jj_tips.sql ใน Supabase ก่อน');
   const period = document.getElementById('tipBg').dataset.period;
   if(!period) return;
+  // กันพลาด: ใส่ยอดแต่ไม่เลือกใครเลย
+  for(const b of Object.keys(BR)){
+    const el = document.getElementById('tip_'+b); if(!el) continue;
+    if(Math.max(0, +el.value||0) > 0 && !tipCheckedIds(b).length)
+      return toast('❌ '+((BR[b]||{}).t||b)+': ใส่ยอดทิปแต่ยังไม่ได้เลือกใครเลย');
+  }
   try{
     for(const b of Object.keys(BR)){
       const el = document.getElementById('tip_'+b); if(!el) continue;
       const v = Math.max(0, +el.value||0);
       const cur = tips.find(x=>x.period===period && x.branch===b);
       if(v > 0){
+        // ติ๊กตรงกับรายชื่ออัตโนมัติ = เก็บว่าง (โหมดอัตโนมัติ ตามคนทำงานจริงเสมอ)
+        const ids = tipCheckedIds(b);
+        const auto = tipEligibleIds(period, b);
+        const isAuto = ids.length===auto.length && auto.every(id=>ids.includes(id));
+        const member_ids = isAuto ? '' : ids.join(',');
         const { data, error } = await db.from('tips')
-          .upsert({ period, branch:b, amount:v }, { onConflict:'period,branch' })
+          .upsert({ period, branch:b, amount:v, member_ids }, { onConflict:'period,branch' })
           .select().single();
         if(error) throw error;
-        if(cur) cur.amount = v; else tips.push(fromDbTip(data));
+        if(cur){ cur.amount = v; cur.members = isAuto ? [] : ids; }
+        else tips.push(fromDbTip(data));
       } else if(cur){
         const { error } = await db.from('tips').delete().eq('id', cur.id);
         if(error) throw error;

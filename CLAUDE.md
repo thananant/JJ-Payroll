@@ -28,7 +28,7 @@
 - **กฎห้ามหยุด ศ-ส-อา + วันหยุดพิเศษ**: หยุดโดนหักวันละ **2 เท่าของค่าแรงวัน** (mustPerDay — เจ้าของสั่ง 2026-08-12 เช่น ฐาน 400 → หัก 800 · รายเดือนคิดฐาน ÷30 × 2) · **×2 เริ่ม 2026-07-26 = งวด ส.ค. 2569** (`MUST_X2_START`) ก่อนหน้านั้น ×1 ตามเดิม
   - ยกเว้นอัตโนมัติ (autoMustExempt): สาขา OFFICE, ตำแหน่ง/แผนกมีคำว่า manager|ผู้จัดการ, แผนกมีคำว่า ออฟฟิศ, คนมีวันหยุดประจำสัปดาห์, รายชั่วโมง
 - **เบี้ยไม่หยุด**: ไม่ใช้สิทธิ์วันหยุด ได้วันละ 400 · **เบี้ยวันหยุดพิเศษ**: มาทำงานวันหยุดพิเศษได้ตัวคูณ (ต้องไม่สาย/ไม่ออกก่อน/ไม่ลืมตอก)
-- **ทิปประจำงวด** (เจ้าของสั่ง 2026-09-01): ปุ่ม 💰 หน้าสรุปเงินเดือน → modal `tipBg` ใส่ยอดทิปรวมต่อสาขาต่องวด (ตาราง `tips`, flag `tipReady`) · หารเท่ากันให้**ทุกคนในสาขาที่มีวันทำงานในงวดและยังทำงานอยู่** — คนพ้นสภาพไม่ได้และไม่นับเป็นตัวหาร (tipCalc/tipHeads — memo `tipMemo` ล้างใน recomputeAll) · **เศษสตางค์ปัดลง** Math.floor(pool/n) เศษไม่แจก · บวกเข้ารายรับในสลิป/หน้ารายคน/คอลัมน์เพิ่มอัตโนมัติ · เว้นว่างหรือ 0 = ลบแถว (saveTips)
+- **ทิปประจำงวด** (เจ้าของสั่ง 2026-09-01): ปุ่ม 💰 หน้าสรุปเงินเดือน → modal `tipBg` ใส่ยอดทิปรวมต่อสาขาต่องวด (ตาราง `tips`, flag `tipReady`) · หารเท่ากันให้**ทุกคนในสาขาที่มีวันทำงานในงวดและยังทำงานอยู่** — คนพ้นสภาพไม่ได้และไม่นับเป็นตัวหาร (tipCalc/tipHeads — memo `tipMemo` ล้างใน recomputeAll) · **เลือกคนเองได้ต่อสาขา**: ปุ่ม 👥 ในmodal ติ๊กรายคน (tipRenderPick/tipCheckedIds) เก็บใน `tips.member_ids` (csv ของ employee_id · ว่าง = อัตโนมัติ — saveTips เก็บว่างถ้าติ๊กตรงรายชื่ออัตโนมัติพอดี เพื่อให้ตามคนทำงานจริงเสมอ) · โหมดเลือกเองไม่บังคับมีวันทำงาน แต่ยังตัดคนพ้นสภาพ · **เศษสตางค์ปัดลง** Math.floor(pool/n) เศษไม่แจก · บวกเข้ารายรับในสลิป/หน้ารายคน/คอลัมน์เพิ่มอัตโนมัติ · เว้นว่างหรือ 0 = ลบแถว (saveTips)
 - **เบิกกลางเดือน**: มีเพดานต่อคน เกินได้แต่ toast เตือน + confirm · **Manager (แผนก/ตำแหน่ง manager|ผู้จัดการ) เพดาน 5,000** คนอื่นตาม adv_max (3,000) · **เงินยืมโหมด mid กันยอดผ่อนงวดนี้ออกจากสิทธิ์เบิก** (advQuota: loanHold — เช่น เพดาน 5,000 ผ่อน 2,000 → เบิกได้ 3,000)
 - **ประกันสังคม (สปส.)**: หน้า #sso · ติ๊กรายคน `employees.sso_on` + เลขบัตร `sso_id` (13 หลัก) flag `ssoReady` · เงินสมทบ = ฐานค่าจ้าง clamp [sso_min 1,650, sso_max 15,000] × sso_rate 5% ปัดเศษ ≥50 สต. ขึ้น (ssoCalc — ฐานใช้ p.base ของงวด, base 0 = ไม่หัก) · นายจ้างสมทบเท่ากัน · override รายงวด `sso_entries` (0 = งดหัก, editSso) · ปุ่ม 📤 exportSso = Excel แนว สปส. 1-10 (หัวไฟล์ใช้ sso_account จากตั้งค่า) · ตั้งค่า sso_rate/sso_min/sso_max/sso_account ในหน้าตั้งค่า
 - **เงินประกัน**: เป้า 5,000 หักเดือนละ 500 · **เริ่มหักจริงงวด 2026-08 (ส.ค. 2569)** ผ่าน `payroll_settings.dep_start` — ห้ามคิดย้อนหลัง · override รายงวดในตาราง `deposit_entries` · ครบแล้วหยุดเอง
@@ -61,7 +61,7 @@
 - `fine_entries` — แก้ยอดรายการหักอัตโนมัติรายงวด: employee_id, period, kind(miss/late/single/must), amount, unique(employee_id, period, kind)
 - `loans` — พนักงานยืมเงิน unique ต่อคน: amount, monthly, deduct_on(mid/payroll), start_period, opening, loan_date, note · `loan_entries` — override ผ่อนรายงวด unique(employee_id, period)
 - `sso_entries` — ประกันสังคม override รายงวด: unique(employee_id, period) · employees เพิ่ม sso_on, sso_id · payroll_settings เพิ่ม sso_rate/sso_min/sso_max/sso_account
-- `tips` — ทิปรวมต่อสาขาต่องวด: period, branch, amount, unique(period, branch)
+- `tips` — ทิปรวมต่อสาขาต่องวด: period, branch, amount, member_ids (csv เลือกคนเอง · ว่าง = อัตโนมัติ), unique(period, branch)
 - ทุกตาราง RLS เปิดแบบ allow-all + อยู่ใน publication `supabase_realtime`
 
 ## โครงหน้า (hash routing: #today #emp #detail #payroll #cal #adv #loan #dep #sso #mou #shifts #holi #settings)
