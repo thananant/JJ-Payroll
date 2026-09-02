@@ -10,12 +10,17 @@ CREATE TABLE IF NOT EXISTS tips (
   period     text NOT NULL,
   branch     text NOT NULL,
   amount     numeric NOT NULL DEFAULT 0,
+  member_ids text NOT NULL DEFAULT '',
   note       text NOT NULL DEFAULT '',
   created_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE (period, branch)
 );
 
+-- เผื่อคนที่รันเวอร์ชันก่อนหน้า (ยังไม่มีคอลัมน์เลือกคน) — รันซ้ำได้
+ALTER TABLE tips ADD COLUMN IF NOT EXISTS member_ids text NOT NULL DEFAULT '';
+
 COMMENT ON TABLE tips IS 'ยอดทิปรวมต่อสาขาต่องวด — แอปหารเท่ากันให้คนที่มีวันทำงานในงวด (ปัดเศษลง)';
+COMMENT ON COLUMN tips.member_ids IS 'เลือกคนเอง: employee_id คั่นจุลภาค · ว่าง = อัตโนมัติ (ทุกคนที่มีวันทำงานและยังทำงานอยู่)';
 
 ALTER TABLE tips ENABLE ROW LEVEL SECURITY;
 
