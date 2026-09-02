@@ -2259,7 +2259,9 @@ function tipCalc(emp, period){
   if(!t || !(+t.amount > 0)) return zero;
   if(t.members && t.members.length){
     // โหมดเลือกคนเอง: แจกเฉพาะคนที่ถูกติ๊ก (คนพ้นสภาพตัดออกจากทั้งส่วนแบ่งและตัวหาร)
-    const m = t.members.filter(id => { const x = employees.find(e=>e.id===id); return x && x.active; });
+    // คนที่ย้ายสาขาไปแล้วก็ตัดออกเหมือนกัน (ไม่งั้นถูกนับเป็นตัวหารทั้งที่รับจากสาขานี้ไม่ได้)
+    const m = t.members.filter(id => { const x = employees.find(e=>e.id===id);
+      return x && x.active && (x.branch||'')===t.branch; });
     const n = m.length;
     return { pool:+t.amount, n, picked:true,
              share: (n && m.includes(emp.id)) ? Math.floor(+t.amount / n) : 0 };
@@ -2289,7 +2291,7 @@ function openTips(){
   }
   tipPreview();
   document.getElementById('tipBg').classList.add('show');
-  if(goneN) toast('⚠️ มีคนพ้นสภาพที่ทำงานในงวดนี้ '+goneN+' คน — ไม่ได้รับทิป (ดูในรายชื่อ 👥 เลือกคน)');
+  if(goneN) toast('⚠️ มีคนพ้นสภาพในรายชื่อ '+goneN+' คน — ไม่ได้รับทิป (ดูในรายชื่อ 👥 เลือกคน)');
 }
 /* คนพ้นสภาพที่ยังโผล่ในรายชื่อ = มีวันทำงานในงวด หรือเคยถูกเลือกไว้ — โชว์เป็นแถวเตือน ติ๊กไม่ได้ (ไม่ได้ทิป ไม่นับตัวหาร) */
 function tipInactiveOf(b, period, t){
@@ -2301,8 +2303,9 @@ function tipInactiveOf(b, period, t){
 function tipRenderPick(b, period, t){
   const box = document.getElementById('tipPick_'+b); if(!box) return;
   box.hidden = true;
-  const sel = (t && t.members && t.members.length) ? new Set(t.members)
-            : new Set(tipEligibleIds(period, b));
+  const autoIds = tipEligibleIds(period, b);
+  box.dataset.auto = autoIds.join(',');   // ชุดอัตโนมัติ "ตอนที่แสดง" — saveTips เทียบกับชุดนี้ (กัน realtime เปลี่ยนระหว่างเปิด)
+  const sel = (t && t.members && t.members.length) ? new Set(t.members) : new Set(autoIds);
   const byName = (a,z)=> (empShiftsInPeriod(z,period).length?1:0)-(empShiftsInPeriod(a,period).length?1:0)
                       || a.nick.localeCompare(z.nick,'th');
   const list = employees.filter(x=>x.active && (x.branch||'')===b).sort(byName);
@@ -2359,21 +2362,27 @@ async function saveTips(){
   if(!tipReady) return toast('❌ ต้องรัน jj_tips.sql ใน Supabase ก่อน');
   const period = document.getElementById('tipBg').dataset.period;
   if(!period) return;
-  // กันพลาด: ใส่ยอดแต่ไม่เลือกใครเลย
+  // กันพลาด: ใส่ยอดแต่ไม่เลือกใครเลย (ถ้าสาขานั้นไม่มีใครให้เลือกเลย เช่น พ้นสภาพหมด → ข้ามสาขานั้น ไม่บล็อกสาขาอื่น)
+  const skipped = [];
   for(const b of Object.keys(BR)){
     const el = document.getElementById('tip_'+b); if(!el) continue;
-    if(Math.max(0, +el.value||0) > 0 && !tipCheckedIds(b).length)
-      return toast('❌ '+((BR[b]||{}).t||b)+': ใส่ยอดทิปแต่ยังไม่ได้เลือกใครเลย');
+    if(Math.max(0, +el.value||0) > 0 && !tipCheckedIds(b).length){
+      if(document.querySelectorAll('input[data-tipck="'+b+'"]').length)
+        return toast('❌ '+((BR[b]||{}).t||b)+': ใส่ยอดทิปแต่ยังไม่ได้เลือกใครเลย');
+      skipped.push(b);
+    }
   }
   try{
     for(const b of Object.keys(BR)){
       const el = document.getElementById('tip_'+b); if(!el) continue;
+      if(skipped.includes(b)) continue;
       const v = Math.max(0, +el.value||0);
       const cur = tips.find(x=>x.period===period && x.branch===b);
       if(v > 0){
-        // ติ๊กตรงกับรายชื่ออัตโนมัติ = เก็บว่าง (โหมดอัตโนมัติ ตามคนทำงานจริงเสมอ)
+        // ติ๊กตรงกับรายชื่ออัตโนมัติ (ชุดที่แสดงตอนเปิด) = เก็บว่าง → โหมดอัตโนมัติ ตามคนทำงานจริงเสมอ
         const ids = tipCheckedIds(b);
-        const auto = tipEligibleIds(period, b);
+        const box = document.getElementById('tipPick_'+b);
+        const auto = ((box && box.dataset.auto) || '').split(',').map(Number).filter(Boolean);
         const isAuto = ids.length===auto.length && auto.every(id=>ids.includes(id));
         const member_ids = isAuto ? '' : ids.join(',');
         const { data, error } = await db.from('tips')
@@ -2391,7 +2400,9 @@ async function saveTips(){
   }catch(e){ return dbErr(e,'บันทึกทิป'); }
   closeModal('tipBg');
   renderPayroll(); renderDetail();
-  toast('💰 บันทึกทิปงวด '+periodLabel(period)+' แล้ว');
+  toast(skipped.length
+    ? '⚠️ ข้าม '+skipped.map(b=>(BR[b]||{}).t||b).join(', ')+': ไม่มีใครให้แจก (พ้นสภาพหมด) — สาขาอื่นบันทึกแล้ว'
+    : '💰 บันทึกทิปงวด '+periodLabel(period)+' แล้ว');
 }
 
 /* ================= ประกันสังคม (สปส.) =================
